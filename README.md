@@ -5,99 +5,19 @@
 ```Bash
 
 nano fedora_universal_armor.sh
-```
+
 # Paste the code, then save and exit (CTRL+O, Enter, CTRL+X)
 
-    Make the script executable:
-
-```Bash
+# Make the script executable:
 
 chmod +x fedora_universal_armor.sh
-```
 
-    Ignite the armor protocol:
-
-```Bash
+# Ignite the armor protocol:
 
 sudo ./fedora_universal_armor.sh
 ```
 
-📝 Post-Flight Red Team Notes
-
-    Fapolicyd is Active: Any standalone binary, AppImage, or Python script you download manually will be blocked by default. To trust a specific file, you must explicitly whitelist it: sudo fapolicyd-cli --file add /path/to/file --trust-file allowed_apps followed by sudo fapolicyd-cli --update.
-
-    Zero Blind Spots: Useless background daemon autonomy has been revoked. The infamous cups-browsed (source of recent RCE vulnerabilities) is completely masked.
-
-    Firmware Autonomy Revoked: The fwupd background polling timer has been disabled to eliminate zero-value CPU wakeups. To update your BIOS/TPM firmware, you must now do it manually by executing sudo fwupdmgr refresh and update.
-
-⚖️ Disclaimer
-
-This project is provided for educational purposes to demonstrate hardcore Linux hardening, Zero-Trust architectures, and Defensive Scripting methodologies. Please READ AND UNDERSTAND the code before executing it on your personal or corporate machines. The author assumes no liability for data loss, system lockouts, or broken configurations. Don't assume, verify. | #🛡️ Fedora 44 Universal Enterprise Armor (The Terminus Protocol)
-
-Bu proje, Fedora 44 işletim sistemini standart bir ev kullanıcısı profilinden çıkarıp, "Sıfır Güven" (Zero-Trust) ve "Sıfır Hata" (Zero-Defect) prensipleriyle çalışan, kurumsal düzeyde (Enterprise-Grade) zırhlanmış bir iş istasyonuna dönüştürmek için hazırlanmış bir Örnek Kurulum ve Eğitim Betiğidir.
-
-Siber güvenlik topluluğuna ve Linux sevdalılarına faydalı olması amacıyla, aylar süren "Kırmızı Takım" (Red Team) analizleri, donanım optimizasyon testleri ve kriptografik doğrulama süreçleri sonucunda açık kaynak olarak paylaşılmıştır.
-📖 Felsefemiz: Neden Bu Betik Farklı?
-
-İnternette bulabileceğiniz standart "Kurulum Sonrası (Post-Install)" betiklerinin çoğu İstatistiksel Ortalama tuzağına düşer; yani hataları halı altına süpürür (\|\| true kullanarak), her bilgisayarı aynı sanır ve sistemin çalışma mantığına körü körüne müdahale eder.
-
-Bizim felsefemiz ise "Varsayımda Bulunma, Doğrula" (Don't Assume, Verify) ilkesidir:
-
-    Defensive Scripting (Savunmacı Yazılım): Bu kod, bir servisi kapatmadan veya bir paketi silmeden önce sistemde gerçekten var olup olmadığını kontrol eder. Hataları yutmaz; bir sorun varsa mertçe işlemi durdurur ve size rapor verir.
-
-    Human-in-the-Loop (İnsan Onayı): Sisteme kalıcı olarak mühür vuracak (USBGuard gibi) uygulamalar kurulurken işlem duraklatılır ve kullanıcının fiziksel onayı istenir.
-
-    Idempotent Mimari: Bu betiği 1000 kere de çalıştırsanız sistem dosyalarınız şişmez, ayarlarınız bozulmaz.
-
-✨ Öne Çıkan Kurumsal Özellikler
-
-    🔐 Kriptografik LUKS2 / TPM 2.0 Doğrulaması: Sisteminizin sadece TPM'e sahip olup olmadığını değil, diskinizin şifreleme anahtarlarının doğrudan PCR 0, 7 ve 11 bankalarına kilitli (Binding) olup olmadığını donanım seviyesinde test eder.
-
-    🛑 Katı Hata Yönetimi ve Omni-Logger: Bash'in en acımasız kuralı olan set -Eeuo pipefail ile yazılmıştır. Her işlem nanosaniyesine kadar izole edilmiş bir log dosyasına (/var/log/fedora_terminus_...) kaydedilir.
-
-    🛡️ Fapolicyd & OSTree Trust Backend: Sisteminize sadece güvendiğiniz RPM ve Flatpak (OSTree) uygulamalarının çalışmasına izin verir. Dışarıdan indirilen hiçbir fidye yazılımı (Ransomware) veya zararlı betik RAM'e ulaşamaz.
-
-    🔌 USBGuard Kalkanı: BadUSB (Rubber Ducky) saldırılarına karşı, onaylamadığınız hiçbir USB aygıtı (klavye ve fare gibi görünse bile) sisteme elektrik seviyesinde erişemez.
-
-    👁️ Ağ Hayalet Modu: MAC adresi rastgeleleştirme, IPv6 veri sızıntı koruması, DNS-over-TLS (Quad9 DNSSEC) ve ICMP (Ping) kalkanı.
-
-    💤 Dinamik Uyku Mühürü (Donanım Bağımsız): Surface, Lenovo, Dell fark etmeksizin sistemin ACPI ağacını tarar; sadece Güç Tuşu ve Kapak sensörü gibi hayati donanımları uyanık bırakıp, çantada bilgisayarı uyandırarak pili sömüren tüm hayalet donanımları kör eder.
-
-    🕵️ Siber Denetçiler: Rkhunter, Unhide, ClamAV ve AIDE kurularak, sistemin o anki en saf, en temiz halinin kriptografik parmak izi (Baseline) alınır. (Lynis Skoru: 81+)
-
-⚙️ Gereksinimler
-
-    Temiz kurulmuş, güncel bir Fedora 44 İşletim Sistemi.
-
-    İnternet bağlantısı.
-
-    sudo (root) yetkilerine sahip bir kullanıcı.
-
-🚀 Kurulum ve Kullanım
-
-    ⚠️ UYARI: Bu betiği çalıştırmadan önce lütfen bilgisayarınıza kullandığınız tüm güvenilir USB cihazlarını (Klavye, Fare, Hub, Type Cover vb.) taktığınızdan emin olun. Aksi takdirde USBGuard bunları yabancı cihaz sanıp engelleyecektir.
-
-    Terminali açın ve betiği indirin (veya kopyalayıp fedora_armor.sh olarak kaydedin):
-
-```Bash
-
-nano fedora_armor.sh
-```
-# Kodları içine yapıştırıp CTRL+O, Enter, CTRL+X ile çıkın.
-
-    Betiğe çalışma izni verin:
-
-```Bash
-
-chmod +x fedora_armor.sh
-```
-
-    Kurşungeçirmez zırhı başlatın:
-
-```Bash
-
-sudo ./fedora_armor.sh
-```
+| 📝 Post-Flight Red Team Notes<br><br>    Fapolicyd is Active: Any standalone binary, AppImage, or Python script you download manually will be blocked by default. To trust a specific file, you must explicitly whitelist it: sudo fapolicyd-cli --file add /path/to/file --trust-file allowed_apps followed by sudo fapolicyd-cli --update.<br><br>    Zero Blind Spots: Useless background daemon autonomy has been revoked. The infamous cups-browsed (source of recent RCE vulnerabilities) is completely masked.<br><br>    Firmware Autonomy Revoked: The fwupd background polling timer has been disabled to eliminate zero-value CPU wakeups. To update your BIOS/TPM firmware, you must now do it manually by executing sudo fwupdmgr refresh and update.<br><br>⚖️ Disclaimer<br><br>This project is provided for educational purposes to demonstrate hardcore Linux hardening, Zero-Trust architectures, and Defensive Scripting methodologies. Please READ AND UNDERSTAND the code before executing it on your personal or corporate machines. The author assumes no liability for data loss, system lockouts, or broken configurations. Don't assume, verify. | #🛡️ Fedora 44 Universal Enterprise Armor (The Terminus Protocol)<br><br>Bu proje, Fedora 44 işletim sistemini standart bir ev kullanıcısı profilinden çıkarıp, "Sıfır Güven" (Zero-Trust) ve "Sıfır Hata" (Zero-Defect) prensipleriyle çalışan, kurumsal düzeyde (Enterprise-Grade) zırhlanmış bir iş istasyonuna dönüştürmek için hazırlanmış bir Örnek Kurulum ve Eğitim Betiğidir.<br><br>Siber güvenlik topluluğuna ve Linux sevdalılarına faydalı olması amacıyla, aylar süren "Kırmızı Takım" (Red Team) analizleri, donanım optimizasyon testleri ve kriptografik doğrulama süreçleri sonucunda açık kaynak olarak paylaşılmıştır.<br><br> Felsefemiz: Neden Bu Betik Farklı?<br><br>İnternette bulabileceğiniz standart "Kurulum Sonrası (Post-Install)" betiklerinin çoğu İstatistiksel Ortalama tuzağına düşer; yani hataları halı altına süpürür (\|\| true kullanarak), her bilgisayarı aynı sanır ve sistemin çalışma mantığına körü körüne müdahale eder.<br><br>Bizim felsefemiz ise "Varsayımda Bulunma, Doğrula" (Don't Assume, Verify) ilkesidir:<br><br>    Defensive Scripting (Savunmacı Yazılım): Bu kod, bir servisi kapatmadan veya bir paketi silmeden önce sistemde gerçekten var olup olmadığını kontrol eder. Hataları yutmaz; bir sorun varsa mertçe işlemi durdurur ve size rapor verir.<br><br>    Human-in-the-Loop (İnsan Onayı): Sisteme kalıcı olarak mühür vuracak (USBGuard gibi) uygulamalar kurulurken işlem duraklatılır ve kullanıcının fiziksel onayı istenir.<br><br>    Idempotent Mimari: Bu betiği 1000 kere de çalıştırsanız sistem dosyalarınız şişmez, ayarlarınız bozulmaz.<br><br>✨ Öne Çıkan Kurumsal Özellikler<br><br>    🔐 Kriptografik LUKS2 / TPM 2.0 Doğrulaması: Sisteminizin sadece TPM'e sahip olup olmadığını değil, diskinizin şifreleme anahtarlarının doğrudan PCR 0, 7 ve 11 bankalarına kilitli (Binding) olup olmadığını donanım seviyesinde test eder.<br><br>    🛑 Katı Hata Yönetimi ve Omni-Logger: Bash'in en acımasız kuralı olan set -Eeuo pipefail ile yazılmıştır. Her işlem nanosaniyesine kadar izole edilmiş bir log dosyasına (/var/log/fedora_terminus_...) kaydedilir.<br><br>    🛡️ Fapolicyd & OSTree Trust Backend: Sisteminize sadece güvendiğiniz RPM ve Flatpak (OSTree) uygulamalarının çalışmasına izin verir. Dışarıdan indirilen hiçbir fidye yazılımı (Ransomware) veya zararlı betik RAM'e ulaşamaz.<br><br>    🔌 USBGuard Kalkanı: BadUSB (Rubber Ducky) saldırılarına karşı, onaylamadığınız hiçbir USB aygıtı (klavye ve fare gibi görünse bile) sisteme elektrik seviyesinde erişemez.<br><br>    👁️ Ağ Hayalet Modu: MAC adresi rastgeleleştirme, IPv6 veri sızıntı koruması, DNS-over-TLS (Quad9 DNSSEC) ve ICMP (Ping) kalkanı.<br><br>    💤 Dinamik Uyku Mühürü (Donanım Bağımsız): Surface, Lenovo, Dell fark etmeksizin sistemin ACPI ağacını tarar; sadece Güç Tuşu ve Kapak sensörü gibi hayati donanımları uyanık bırakıp, çantada bilgisayarı uyandırarak pili sömüren tüm hayalet donanımları kör eder.<br><br>    🕵️ Siber Denetçiler: Rkhunter, Unhide, ClamAV ve AIDE kurularak, sistemin o anki en saf, en temiz halinin kriptografik parmak izi (Baseline) alınır. (Lynis Skoru: 81+)<br><br>⚙️ Gereksinimler<br><br>    Temiz kurulmuş, güncel bir Fedora 44 İşletim Sistemi.<br><br>    İnternet bağlantısı.<br><br>    sudo (root) yetkilerine sahip bir kullanıcı.<br><br>🚀 Kurulum ve Kullanım<br><br>    ⚠️ UYARI: Bu betiği çalıştırmadan önce lütfen bilgisayarınıza kullandığınız tüm güvenilir USB cihazlarını (Klavye, Fare, Hub, Type Cover vb.) taktığınızdan emin olun. Aksi takdirde USBGuard bunları yabancı cihaz sanıp engelleyecektir.<br><br>    Terminali açın ve betiği indirin (veya kopyalayıp fedora_armor.sh olarak kaydedin): |
 
 📝 Kurulum Sonrası Notlar (Kırmızı Takım'dan Uyarılar)
 
