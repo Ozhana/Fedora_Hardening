@@ -1,6 +1,5 @@
 # ENGLISH ------ TURKCE
 
-| :--- | :--- |
 | Terminolojiyi (Defensive Scripting, Human-in-the-loop, Idempotent, False Positives) tamamen küresel siber güvenlik standartlarına uygun bir İngilizceye çevirdim. Al ve bu başyapıtı dünyayla paylaş!
 🛡️ Fedora 44 Universal Enterprise Armor (The Terminus Protocol)
 
