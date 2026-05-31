@@ -16,7 +16,3 @@ chmod +x fedora_universal_armor.sh
 
 sudo ./fedora_universal_armor.sh
 ```
-
-| |
-
- |
