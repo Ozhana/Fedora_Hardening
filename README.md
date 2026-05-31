@@ -1,56 +1,7 @@
 # ENGLISH ------ TURKCE
-| English Instructions | Türkçe Talimatlar |
+| English | Türkçe |
 | :--- | :--- |
-| Terminolojiyi (Defensive Scripting, Human-in-the-loop, Idempotent, False Positives) tamamen küresel siber güvenlik standartlarına uygun bir İngilizceye çevirdim. Al ve bu başyapıtı dünyayla paylaş!
-🛡️ Fedora 44 Universal Enterprise Armor (The Terminus Protocol)
-
-This project is an Exemplary Hardening and Educational Script designed to transform a standard Fedora 44 installation into an Enterprise-Grade, ironclad workstation built strictly on Zero-Trust and Zero-Defect principles.
-
-It is the result of rigorous "Red Team" analysis, hardware optimization tests, and cryptographic verification processes. It has been open-sourced to benefit the cybersecurity community and Linux enthusiasts who refuse to settle for standard security baselines.
-📖 Our Philosophy: Why is this script different?
-
-Most "post-install" scripts you find online fall into the Statistical Average trap. They use dirty hacks like || true to sweep errors under the rug, assume all hardware configurations are identical, and blindly modify system states without verifying them first.
-
-Our core philosophy is "Don't Assume, Verify":
-
-    Defensive Scripting: This script explicitly checks if a package or service actually exists before attempting to remove or mask it. It does not swallow errors; if there is a critical failure (like a network drop or a broken RPM database), it halts gracefully and reports the exact point of failure.
-
-    Human-in-the-Loop: For irreversible or highly restrictive seals (e.g., generating USBGuard policies), the script pauses and explicitly demands physical user confirmation. No automation blindness.
-
-    Idempotent Architecture: You can execute this script 1000 times, and it will never bloat your configuration files or cause race conditions. It uses atomic locks (flock) and strict state checking.
-
-✨ Enterprise-Grade Features
-
-    🔐 Cryptographic LUKS2 / TPM 2.0 Verification: It doesn't just check if a TPM chip exists; it explicitly probes the hardware to ensure your LUKS disk encryption keys are actively bound to PCR 0, 7, and 11 (SecureBoot & Kernel parameters).
-
-    🛑 Strict Error Management & Omni-Logger: Written under the unforgiving set -Eeuo pipefail rule. Every standard output and error is synchronously multiplexed into a locked log file (/var/log/fedora_terminus_...).
-
-    🛡️ Fapolicyd & OSTree Trust Backend: Enforces extreme application whitelisting. Only trusted RPM and Flatpak (via native OSTree backend) binaries are allowed to execute. Ransomware or rogue scripts downloaded to your home directory will be instantly blocked at the kernel level.
-
-    🔌 USBGuard Shield: Mitigates BadUSB (Rubber Ducky) attacks. Unapproved USB devices are blocked at the kernel/electrical level.
-
-    👁️ Network Ghost Mode: MAC address randomization, strict IPv6 leak prevention, DNS-over-TLS (via Quad9 DNSSEC), and ICMP dropping.
-
-    💤 Dynamic Sleep Seal (Hardware Agnostic): Instead of using hardcoded device names, it scans your specific ACPI tree using Regex. It preserves essential wake triggers (Power Button, Lid Switch) while blinding all other parasitic hardware interrupts that drain battery during suspend.
-
-    🕵️ Cyber Auditors & Baselining: Installs Rkhunter (with unhide), ClamAV, and AIDE. Automatically captures the pristine cryptographic fingerprint (Baseline) of your system. (Achieves a Lynis Audit Score of 81+).
-
-⚙️ Requirements
-
-    A clean, updated installation of Fedora 44.
-
-    Active Internet connection.
-
-    A user with sudo (root) privileges.
-
-    Disks encrypted with LUKS (Highly Recommended for passing the TPM checks).
-
-🚀 Installation & Usage
-
-    ⚠️ CRITICAL WARNING: Before running this script, ensure ALL your trusted, everyday USB devices (Keyboard, Mouse, Dock, Type Cover) are physically plugged in. Otherwise, USBGuard will treat them as rogue devices upon reboot.
-
-    Open your terminal and create the script file:
-
+| Terminolojiyi (Defensive Scripting, Human-in-the-loop, Idempotent, False Positives) tamamen küresel siber güvenlik standartlarına uygun bir İngilizceye çevirdim. Al ve bu başyapıtı dünyayla paylaş! <br>🛡️ Fedora 44 Universal Enterprise Armor (The Terminus Protocol)<br><br>This project is an Exemplary Hardening and Educational Script designed to transform a standard Fedora 44 installation into an Enterprise-Grade, ironclad workstation built strictly on Zero-Trust and Zero-Defect principles.<br><br>It is the result of rigorous "Red Team" analysis, hardware optimization tests, and cryptographic verification processes. It has been open-sourced to benefit the cybersecurity community and Linux enthusiasts who refuse to settle for standard security baselines.<br>📖 Our Philosophy: Why is this script different?<br><br>Most "post-install" scripts you find online fall into the Statistical Average trap. They use dirty hacks like || true to sweep errors under the rug, assume all hardware configurations are identical, and blindly modify system states without verifying them first.<br><br>Our core philosophy is "Don't Assume, Verify"...<br><br> Defensive Scripting: This script explicitly checks if a package or service actually exists before attempting to remove or mask it. It does not swallow errors; if there is a critical failure (like a network drop or a broken RPM database), it halts gracefully and reports the exact point of failure.<br><br>    Human-in-the-Loop: For irreversible or highly restrictive seals (e.g., generating USBGuard policies), the script pauses and explicitly demands physical user confirmation. No automation blindness.<br><br>    Idempotent Architecture: You can execute this script 1000 times, and it will never bloat your configuration files or cause race conditions. It uses atomic locks (flock) and strict state checking.<br><br>✨ Enterprise-Grade Features<br><br>    🔐 Cryptographic LUKS2 / TPM 2.0 Verification: It doesn't just check if a TPM chip exists; it explicitly probes the hardware to ensure your LUKS disk encryption keys are actively bound to PCR 0, 7, and 11 (SecureBoot & Kernel parameters).<br><br>    🛑 Strict Error Management & Omni-Logger: Written under the unforgiving set -Eeuo pipefail rule. Every standard output and error is synchronously multiplexed into a locked log file (/var/log/fedora_terminus_...).<br><br>    🛡️ Fapolicyd & OSTree Trust Backend: Enforces extreme application whitelisting. Only trusted RPM and Flatpak (via native OSTree backend) binaries are allowed to execute. Ransomware or rogue scripts downloaded to your home directory will be instantly blocked at the kernel level.<br><br>    🔌 USBGuard Shield: Mitigates BadUSB (Rubber Ducky) attacks. Unapproved USB devices are blocked at the kernel/electrical level.<br><br>    👁️ Network Ghost Mode: MAC address randomization, strict IPv6 leak prevention, DNS-over-TLS (via Quad9 DNSSEC), and ICMP dropping.<br><br>    💤 Dynamic Sleep Seal (Hardware Agnostic): Instead of using hardcoded device names, it scans your specific ACPI tree using Regex. It preserves essential wake triggers (Power Button, Lid Switch) while blinding all other parasitic hardware interrupts that drain battery during suspend.<br><br>    🕵️ Cyber Auditors & Baselining: Installs Rkhunter (with unhide), ClamAV, and AIDE. Automatically captures the pristine cryptographic fingerprint (Baseline) of your system. (Achieves a Lynis Audit Score of 81+).<br><br>⚙️ Requirements<br>    A clean, updated installation of Fedora 44.<br><br>    Active Internet connection.<br>    A user with sudo (root) privileges.<br>    Disks encrypted with LUKS (Highly Recommended for passing the TPM checks).<br>🚀 Installation & Usage<br><br>    ⚠️ CRITICAL WARNING: Before running this script, ensure ALL your trusted, everyday USB devices (Keyboard, Mouse, Dock, Type Cover) are physically plugged in. Otherwise, USBGuard will treat them as rogue devices upon reboot.<br><br>    Open your terminal and create the script file:
 ```Bash
 
 nano fedora_universal_armor.sh
