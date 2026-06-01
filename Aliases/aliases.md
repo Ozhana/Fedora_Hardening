@@ -1,7 +1,7 @@
 # ENTERPRISE-GRADE .BASHRC HARDENING & TELEMETRY SUITE
-# AUTHOR: Dr. Ozhan Akdag
+## AUTHOR: Dr. Ozhan Akdag
 
-# 1. KERNEL & DONANIM İZOLASYONU (USB Dosya Sistemi Kilitleri)
+## 1. KERNEL & DONANIM İZOLASYONU (USB Dosya Sistemi Kilitleri)
 
 ```bash
 alias usb-ac='sudo modprobe usb-storage && sudo modprobe uas && echo "🔓 [SİSTEM] USB Depolama Modülleri Yüklendi. Veri akışı aktif."'
@@ -9,7 +9,7 @@ alias usb-kapat='sudo modprobe -r usb-storage uas 2>/dev/null && echo "🔒 [Sİ
 ```
 
 
-# 2. KRİPTOGRAFİK VERİ İMHASI (DoD Standardı)
+## 2. KRİPTOGRAFİK VERİ İMHASI (DoD Standardı)
 ```bash
 secure-wipe() {
     if [ -z "${1:-}" ]; then 
@@ -22,7 +22,7 @@ secure-wipe() {
 ```
 
 
-# 3. IMMUTABLE ARCHITECTURE (Mutlak Çekirdek Kilidi)
+## 3. IMMUTABLE ARCHITECTURE (Mutlak Çekirdek Kilidi)
 ```bash
 alias kilit-vur='sudo chattr +i'
 alias kilit-ac='sudo chattr -i'
@@ -30,7 +30,7 @@ alias kilit-kontrol='lsattr'
 ```
 
 
-# 4. SİBER GÜVENLİK (Rkhunter Human-in-the-Loop Mimarisi)
+## 4. SİBER GÜVENLİK (Rkhunter Human-in-the-Loop Mimarisi)
 ```bash
 rk-denetim() {
     echo "🛡️ [RKHUNTER] Adım 1: Rootkit imza veritabanı güncelleniyor (--update)..."
@@ -62,7 +62,7 @@ alias net-audit='echo "🔍 [SİSTEM] Açık portlar ve dinleyen süreçler tara
 ```
 
 
-# 5. İZOLASYON & TELEMETRİ (Veri Analitiği ve Çekirdek Röntgeni)
+## 5. İZOLASYON & TELEMETRİ (Veri Analitiği ve Çekirdek Röntgeni)
 ```bash
 data-sandbox() {
     echo "🧪 [SİSTEM] İzole Python Veri Laboratuvarı inşa ediliyor..."
