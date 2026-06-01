@@ -10,7 +10,7 @@
 ```bash
 sudo curl -o /usr/local/bin/usb-authorize.sh [https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/usb-authorize.sh](https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/usb-authorize.sh)
 ```
-
+|.|.|
 | 2. Lock the permissions so it can only be executed with root privileges: | 2. Sadece yönetici (root) yetkisiyle çalıştırılabilmesi için izinlerini kilitleyin: |
 
 ```bash
