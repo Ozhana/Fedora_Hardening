@@ -7,15 +7,14 @@
 | 🛠️ Usage<br><br>You do not need to run this script daily or weekly. It is Event-Driven.<br><br>    You plugged in a new USB device and it did not work (USBGuard blocked it).<br><br>    Open your terminal immediately and call the script: <br>"sudo usb-authorize.sh"<br>A list of blocked devices will appear. Enter the ID number of the device you want to authorize.<br>    The system will ask for Temporary Permission (yes/no). Type yes and test your device.<br>    If the test is successful, the system will ask for permanent approval. To prevent accidental keystrokes (Cognitive Friction), type PERMANENT in uppercase and press Enter.<br>That's it! Your device is now securely added to your hardware baseline.| 🛠️ Nasıl Kullanılır?<br><br>Bu betiği haftada bir veya sürekli çalıştırmanıza gerek yoktur. Betik, sadece yeni bir USB cihaz taktığınızda kullanılır (Olay Güdümlüdür).<br>Bilgisayarınıza yeni bir USB cihaz taktınız ve çalışmadı (USBGuard cihazı engelledi).<br> Hemen terminali açın ve betiği çağırın: <br>"sudo usb-authorize.sh"<br><br>Ekranda engellenen cihazların listesi belirecektir. İzin vermek istediğiniz cihazın ID numarasını girin.    Sistem size önce Geçici İzin (yes/no) soracaktır. yes yazın ve cihazınızın donanımsal testini yapın.<br>    Test başarılıysa, sistem sizden kalıcı onay isteyecektir. Yanlışlıkla basılmaları engellemek (Kognitif Sürtünme) için büyük harflerle PERMANENT yazarak Enter'a basın.<br>İşte bu kadar! Cihazınız artık güvenli donanımlar listesine (Baseline) eklendi.|
 | ⚠️ System Requirements<br><br>    A Linux-based Operating System (Fedora, Ubuntu, Debian, etc.)<br>    usbguard service installed and actively running.<br>    Root (sudo) access.| ⚠️ Sistem Gereksinimleri<br>    Linux tabanlı bir işletim sistemi (Fedora, Ubuntu, Debian vb.)<br>  Sistemde kurulu ve aktif çalışan usbguard servisi.<br>    Yetkili kullanıcı (sudo) erişimi.|
 | 🚀 Installation | 🚀 Kurulum|
-| We will install the script in the secure directory reserved for persistent system administrator tools (`/usr/local/bin`). Open your terminal and paste the following commands:<br><br>1. Download the script and move it to the secure directory: | Betiği sistem yöneticisinin özel ve kalıcı araçları için ayrılmış güvenli dizine (/usr/local/bin) kuracağız. Terminalinizi açın ve aşağıdaki adımları sırayla kopyalayıp yapıştırın:<br><br>1. Betiği indirin ve güvenli dizine taşıyın: |
+| We will install the script in the secure directory reserved for persistent system administrator tools (`/usr/local/bin`). Open your terminal and paste the following commands: | Betiği sistem yöneticisinin özel ve kalıcı araçları için ayrılmış güvenli dizine (/usr/local/bin) kuracağız. Terminalinizi açın ve aşağıdaki adımları sırayla kopyalayıp yapıştırın:|
 
+**1. Download the script and move it to the secure directory:**
 ```bash
 sudo curl -o /usr/local/bin/usb-authorize.sh [https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/usb-authorize.sh](https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/usb-authorize.sh)
 ```
-|.|.|
-| 2. Lock the permissions so it can only be executed with root privileges: | 2. Sadece yönetici (root) yetkisiyle çalıştırılabilmesi için izinlerini kilitleyin: |
 
+2. Lock the permissions so it can only be executed with root privileges:
 ```bash
 sudo chmod 700 /usr/local/bin/usb-authorize.sh
 ```
-actively running.<br>    Root (sudo) access.<br><br>    "Don't Assume, Verify." |  |
