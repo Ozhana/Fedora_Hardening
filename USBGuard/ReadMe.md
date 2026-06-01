@@ -10,12 +10,13 @@
 ```bash
 sudo curl -o /usr/local/bin/usb-authorize.sh [https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/usb-authorize.sh](https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/usb-authorize.sh)
 ```
-| | |
-| 2. Lock the permissions so it can only be executed with root privileges: |   |
+
+| 2. Lock the permissions so it can only be executed with root privileges: | 2. Sadece yönetici (root) yetkisiyle çalıştırılabilmesi için izinlerini kilitleyin: |
+
 ```bash
 sudo chmod 700 /usr/local/bin/usb-authorize.sh
 ```
-| 🛠️ Usage<br><br>You do not need to run this script daily or weekly. It is Event-Driven.<br><br>    You plugged in a new USB device and it did not work (USBGuard blocked it).<br><br>    Open your terminal immediately and call the script:|  |
+| 🛠️ Usage<br><br>You do not need to run this script daily or weekly. It is Event-Driven.<br><br>    You plugged in a new USB device and it did not work (USBGuard blocked it).<br><br>    Open your terminal immediately and call the script:| 🛠️ Nasıl Kullanılır?<br><br>Bu betiği haftada bir veya sürekli çalıştırmanıza gerek yoktur. Betik, sadece yeni bir USB cihaz taktığınızda kullanılır (Olay Güdümlüdür).<br>Bilgisayarınıza yeni bir USB cihaz taktınız ve çalışmadı (USBGuard cihazı engelledi).<br>    Hemen terminali açın ve betiği çağırın: |
     ```Bash
 
     sudo usb-authorize.sh
