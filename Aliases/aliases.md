@@ -1,21 +1,28 @@
 # ENTERPRISE-GRADE .BASHRC HARDENING & TELEMETRY SUITE
 ## AUTHOR: Dr. Ozhan Akdag
 
-## 1. KERNEL & DONANIM İZOLASYONU (USB Dosya Sistemi Kilitleri)
-[TR] USB depolama modüllerini çekirdeğe yükleyerek harici disklerin veri akışını açar.
-[EN] Loads USB storage modules into the kernel to enable external drive data transfer.
+
+### 1. KERNEL & DONANIM İZOLASYONU (USB Dosya Sistemi Kilitleri)
+[TR] USB depolama modüllerini çekirdeğe yükleyerek harici disklerin veri akışını açar.<br>
+[EN] Loads USB storage modules into the kernel to enable external drive data transfer<br>
+
 ```bash
 alias usb-ac='sudo modprobe usb-storage && sudo modprobe uas && echo "🔓 [SİSTEM] USB Depolama Modülleri Yüklendi. Veri akışı aktif."'
 ```
-[TR] USB depolama sürücülerini çekirdekten kazır; böylece fiziksel cihaz takılsa bile veri okunamaz.
-[EN] Removes USB storage drivers from the kernel; preventing data access even if a physical device is connected.
+
+<br><br>
+[TR] USB depolama sürücülerini çekirdekten kazır; böylece fiziksel cihaz takılsa bile veri okunamaz.<br>
+[EN] Removes USB storage drivers from the kernel; preventing data access even if a physical device is connected.<br>
+
 ```bash
 alias usb-kapat='sudo modprobe -r usb-storage uas 2>/dev/null && echo "🔒 [SİSTEM] USB Depolama Kilitlendi. Sürücüler hafızadan güvenle kazındı!" || echo "[!] Kapatılamadı: Cihaz şu an kullanımda olabilir."'
 ```
 
-## 2. KRİPTOGRAFİK VERİ İMHASI (DoD Standardı)
-[TR] Dosya sektörlerini 3 kez rastgele veriyle ezip sıfırlayarak adli bilişimle bile kurtarılamayacak şekilde imha eder.
-[EN] Overwrites file sectors 3 times with random data and zero-fills them, ensuring recovery is impossible even with forensic tools.
+<br><br>
+### 2. KRİPTOGRAFİK VERİ İMHASI (DoD Standardı)
+[TR] Dosya sektörlerini 3 kez rastgele veriyle ezip sıfırlayarak adli bilişimle bile kurtarılamayacak şekilde imha eder.<br>
+[EN] Overwrites file sectors 3 times with random data and zero-fills them, ensuring recovery is impossible even with forensic tools.<br>
+
 ```bash
 secure-wipe() {
     if [ -z "${1:-}" ]; then 
@@ -26,29 +33,31 @@ secure-wipe() {
     shred -u -z -n 3 "$1" && echo "[✔] İşlem başarılı. Veri kurtarma ihtimali: %0"
 }
 ```
+<br><br>
 
-
-## 3. IMMUTABLE ARCHITECTURE (Mutlak Çekirdek Kilidi)
-[TR] Dosyayı kernel seviyesinde "Değiştirilemez" yapar; kilit kalkana kadar root dahil hiç kimse silemez veya değiştiremez.
-[EN] Makes the file "Immutable" at the kernel level; nobody, including root, can delete or modify it until unlocked.
+### 3. IMMUTABLE ARCHITECTURE (Mutlak Çekirdek Kilidi)
+[TR] Dosyayı kernel seviyesinde "Değiştirilemez" yapar; kilit kalkana kadar root dahil hiç kimse silemez veya değiştiremez.<br>
+[EN] Makes the file "Immutable" at the kernel level; nobody, including root, can delete or modify it until unlocked.<br>
 ```bash
 alias kilit-vur='sudo chattr +i'
 ```
-[TR] Dosya üzerindeki kernel seviyesindeki değiştirilemezlik (Immutable) mühürünü kaldırarak düzenlemeye açar.
-[EN] Removes the kernel-level immutability seal from the file, making it editable again.
+<br><br>
+[TR] Dosya üzerindeki kernel seviyesindeki değiştirilemezlik (Immutable) mühürünü kaldırarak düzenlemeye açar.<br>
+[EN] Removes the kernel-level immutability seal from the file, making it editable again.<br>
 ```bash
 alias kilit-ac='sudo chattr -i'
 ```
-[TR] Bulunulan dizindeki dosyaların kernel seviyesindeki özel kilit ve öznitelik durumlarını listeler.
-[EN] Lists the kernel-level special locks and attribute statuses of the files in the current directory.
+<br><br>
+[TR] Bulunulan dizindeki dosyaların kernel seviyesindeki özel kilit ve öznitelik durumlarını listeler.<br>
+[EN] Lists the kernel-level special locks and attribute statuses of the files in the current directory.<br>
 ```bash
 alias kilit-kontrol='lsattr'
 ```
 
-
-## 4. SİBER GÜVENLİK (Rkhunter Human-in-the-Loop Mimarisi)
-[TR] Rootkit imza veritabanını günceller, tarama yapar ve güvenli referans (Baseline) mühürlemesini insan onayına bırakır.
-[EN] Updates the rootkit signature database, runs a scan, and leaves the secure reference (Baseline) sealing to human verification.
+<br><br>
+### 4. SİBER GÜVENLİK (Rkhunter Human-in-the-Loop Mimarisi)
+[TR] Rootkit imza veritabanını günceller, tarama yapar ve güvenli referans (Baseline) mühürlemesini insan onayına bırakır.<br>
+[EN] Updates the rootkit signature database, runs a scan, and leaves the secure reference (Baseline) sealing to human verification.<br>
 ```bash
 rk-denetim() {
     echo "🛡️ [RKHUNTER] Adım 1: Rootkit imza veritabanı güncelleniyor (--update)..."
@@ -74,17 +83,17 @@ rk-denetim() {
     fi
 }
 ```
-
-[TR] Ağda dış bağlantı bekleyen (LISTEN) tüm aktif portları ve bu portları açan gizli süreçleri (PID) listeler.
-[EN] Lists all active ports waiting for external connections (LISTEN) and the hidden processes (PID) that opened them.
+<br><br>
+[TR] Ağda dış bağlantı bekleyen (LISTEN) tüm aktif portları ve bu portları açan gizli süreçleri (PID) listeler.<br>
+[EN] Lists all active ports waiting for external connections (LISTEN) and the hidden processes (PID) that opened them.<br>
 ```bash
 alias net-audit='echo "🔍 [SİSTEM] Açık portlar ve dinleyen süreçler taranıyor..." && sudo ss -tulpn | grep LISTEN'
 ```
+<br><br>
 
-
-## 5. İZOLASYON & TELEMETRİ (Veri Analitiği ve Çekirdek Röntgeni)
-[TR] Bulunulan dizinde steril bir Python sanal ortamı (venv) kurarak işletim sisteminin paket yapısını çakışmalardan korur.
-[EN] Creates a sterile Python virtual environment (venv) in the current directory, protecting the OS package structure from conflicts.
+### 5. İZOLASYON & TELEMETRİ (Veri Analitiği ve Çekirdek Röntgeni)
+[TR] Bulunulan dizinde steril bir Python sanal ortamı (venv) kurarak işletim sisteminin paket yapısını çakışmalardan korur.<br>
+[EN] Creates a sterile Python virtual environment (venv) in the current directory, protecting the OS package structure from conflicts.<br>
 ```bash
 data-sandbox() {
     echo "🧪 [SİSTEM] İzole Python Veri Laboratuvarı inşa ediliyor..."
@@ -93,21 +102,22 @@ data-sandbox() {
     echo "🔒 [GÜVENLİK] Global sistemden koptunuz. Paketler sadece bu dizine kurulacak."
 }
 ```
-
-[TR] Çekirdekten ham bellek verilerini çeker, AWK matrisiyle Gigabyte cinsinden hesaplar ve en ağır 10 süreci listeler.
-[EN] Fetches raw memory data from the kernel, calculates it in Gigabytes using an AWK matrix, and lists the top 10 heaviest processes.
+<br><br>
+[TR] Çekirdekten ham bellek verilerini çeker, AWK matrisiyle Gigabyte cinsinden hesaplar ve en ağır 10 süreci listeler.<br>
+[EN] Fetches raw memory data from the kernel, calculates it in Gigabytes using an AWK matrix, and lists the top 10 heaviest processes.<br>
 ```bash
 alias ram-radar='echo "📊 [TELEMETRİ] En çok RAM tüketen ilk 10 süreç:" && ps axo rss,comm,pid | awk '\''{ sum+=$1; print $0 } END { printf "\nToplam Tüketim: %.2f GB\n", sum/1024/1024 }'\'' | sort -n | tail -n 11'
 ```
-
-[TR] Çekirdek günlükleri (dmesg) içindeki donanım çökmelerini, hafıza hatalarını ve kritik USB anomalilerini süzüp kırmızıya boyar.
-[EN] Filters kernel logs (dmesg) for hardware crashes, memory errors, and critical USB anomalies, highlighting them in red.
+<br><br>
+[TR] Çekirdek günlükleri (dmesg) içindeki donanım çökmelerini, hafıza hatalarını ve kritik USB anomalilerini süzüp kırmızıya boyar.<br>
+[EN] Filters kernel logs (dmesg) for hardware crashes, memory errors, and critical USB anomalies, highlighting them in red.<br>
 
 ```bash
 alias kernel-radar='echo "☢️ [KERNEL] Kritik donanım hataları taranıyor..." && sudo dmesg -T | grep --color=always -iE "error|warn|fail|killed|segfault|usb"'
 ```
-[TR] Kör commit yapmayı engellemek için, mevcut dal durumunu ve değiştirilen satır sayılarını atomik bir istatistik olarak sunar.
-[EN] Prevents blind commits by presenting the current branch status and modified line counts as an atomic statistic.
+<br><br>
+[TR] Kör commit yapmayı engellemek için, mevcut dal durumunu ve değiştirilen satır sayılarını atomik bir istatistik olarak sunar.<br>
+[EN] Prevents blind commits by presenting the current branch status and modified line counts as an atomic statistic.<br>
 ```bash
 alias git-rontgen='echo "🔍 [GİT] Değiştirilen satırların atomik röntgeni:" && git status -s -b && echo "---------------------------" && git diff --stat'
 ```
