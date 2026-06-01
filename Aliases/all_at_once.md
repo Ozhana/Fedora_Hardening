@@ -1,3 +1,4 @@
+just copy past the followings at the end of ~/.bashrc file
 
 ```bash
 alias rm='rm -I --preserve-root'
