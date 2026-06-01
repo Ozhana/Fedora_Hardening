@@ -11,7 +11,7 @@
 
 **1. Download the script and move it to the secure directory:**
 ```bash
-sudo curl -o /usr/local/bin/usb-authorize.sh [https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/usb-authorize.sh](https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/usb-authorize.sh)
+sudo curl -o /usr/local/bin/usb-authorize.sh [https://raw.githubusercontent.com/Ozhana/Fedora_Hardening/tree/main/USBGuard/usb-authorize.sh](https://raw.githubusercontent.com/Ozhana/Fedora_Hardening/tree/main/USBGuard/usb-authorize.sh)
 ```
 
 2. Lock the permissions so it can only be executed with root privileges:
