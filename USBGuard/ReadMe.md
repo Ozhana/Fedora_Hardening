@@ -9,12 +9,17 @@
 | 🚀 Installation | 🚀 Kurulum|
 | We will install the script in the secure directory reserved for persistent system administrator tools (`/usr/local/bin`). Open your terminal and paste the following commands: | Betiği sistem yöneticisinin özel ve kalıcı araçları için ayrılmış güvenli dizine (/usr/local/bin) kuracağız. Terminalinizi açın ve aşağıdaki adımları sırayla kopyalayıp yapıştırın:|
 
-**1. Download the script and move it to the secure directory:**
+**1. Enable the USBGuard core service (Crucial First Step):**
+Before using the script, the USBGuard daemon must be active in the background.
+```bash
+sudo systemctl enable --now usbguard.service
+```
+**2. Download the script and move it to the secure directory:**
 ```bash
 sudo curl -o /usr/local/bin/usb-authorize.sh https://raw.githubusercontent.com/Ozhana/Fedora_Hardening/main/USBGuard/usb-authorize.sh
 ```
 
-2. Lock the permissions so it can only be executed with root privileges:
+**3. Lock the permissions so it can only be executed with root privileges:**
 ```bash
 sudo chmod 700 /usr/local/bin/usb-authorize.sh
 ```
