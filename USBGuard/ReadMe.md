@@ -11,4 +11,15 @@
 ```bash
 sudo curl -o /usr/local/bin/usb-authorize.sh [https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/usb-authorize.sh](https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/usb-authorize.sh)
 ```
+| 2. Lock the permissions so it can only be executed with root privileges: |   |
+```bash
+sudo chmod 700 /usr/local/bin/usb-authorize.sh
+```
+| 🛠️ Usage<br><br>You do not need to run this script daily or weekly. It is Event-Driven.<br><br>    You plugged in a new USB device and it did not work (USBGuard blocked it).<br><br>    Open your terminal immediately and call the script:|  |
+    ```Bash
 
+    sudo usb-authorize.sh
+    ```
+
+| A list of blocked devices will appear. Enter the ID number of the device you want to authorize.<br><br>The system will ask for Temporary Permission (yes/no). Type yes and test your device.<br><br>    If the test is successful, the system will ask for permanent approval. To prevent accidental keystrokes (Cognitive Friction), type PERMANENT in uppercase and press Enter.<br>That's it! Your device is now securely added to your hardware baseline. |  |
+| ⚠️ System Requirements<br><br>    A Linux-based Operating System (Fedora, Ubuntu, Debian, etc.)<br>    usbguard service installed and actively running.<br>    Root (sudo) access.<br><br>    "Don't Assume, Verify." |  |
