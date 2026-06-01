@@ -43,7 +43,8 @@ alias chown='chown --preserve-root'
 6. Deterministik ports<br>
 [TR] Sistemde dinlenen portları, körü körüne grep kullanmak yerine AWK ile kesin bir matris formatında ayrıştırır.<br>
 [EN] Parses listening ports strictly into a matrix format using AWK instead of using blind grep.<br><br>
-```bashalias ports='ss -tulpn | awk '\''NR>1 {printf "%-10s %-25s %s\n", $1, $5, $7}'\'''
+```bash
+alias ports='ss -tulpn | awk '\''NR>1 {printf "%-10s %-25s %s\n", $1, $5, $7}'\'''
 ```
 
 <br><br>
