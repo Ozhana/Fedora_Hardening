@@ -2,14 +2,20 @@
 ## AUTHOR: Dr. Ozhan Akdag
 
 ## 1. KERNEL & DONANIM İZOLASYONU (USB Dosya Sistemi Kilitleri)
-
+# [TR] USB depolama modüllerini çekirdeğe yükleyerek harici disklerin veri akışını açar.
+# [EN] Loads USB storage modules into the kernel to enable external drive data transfer.
 ```bash
 alias usb-ac='sudo modprobe usb-storage && sudo modprobe uas && echo "🔓 [SİSTEM] USB Depolama Modülleri Yüklendi. Veri akışı aktif."'
+```
+# [TR] USB depolama sürücülerini çekirdekten kazır; böylece fiziksel cihaz takılsa bile veri okunamaz.
+# [EN] Removes USB storage drivers from the kernel; preventing data access even if a physical device is connected.
+```bash
 alias usb-kapat='sudo modprobe -r usb-storage uas 2>/dev/null && echo "🔒 [SİSTEM] USB Depolama Kilitlendi. Sürücüler hafızadan güvenle kazındı!" || echo "[!] Kapatılamadı: Cihaz şu an kullanımda olabilir."'
 ```
 
-
 ## 2. KRİPTOGRAFİK VERİ İMHASI (DoD Standardı)
+# [TR] Dosya sektörlerini 3 kez rastgele veriyle ezip sıfırlayarak adli bilişimle bile kurtarılamayacak şekilde imha eder.
+# [EN] Overwrites file sectors 3 times with random data and zero-fills them, ensuring recovery is impossible even with forensic tools.
 ```bash
 secure-wipe() {
     if [ -z "${1:-}" ]; then 
@@ -23,9 +29,19 @@ secure-wipe() {
 
 
 ## 3. IMMUTABLE ARCHITECTURE (Mutlak Çekirdek Kilidi)
+# [TR] Dosyayı kernel seviyesinde "Değiştirilemez" yapar; kilit kalkana kadar root dahil hiç kimse silemez veya değiştiremez.
+# [EN] Makes the file "Immutable" at the kernel level; nobody, including root, can delete or modify it until unlocked.
 ```bash
 alias kilit-vur='sudo chattr +i'
+```
+# [TR] Dosya üzerindeki kernel seviyesindeki değiştirilemezlik (Immutable) mühürünü kaldırarak düzenlemeye açar.
+# [EN] Removes the kernel-level immutability seal from the file, making it editable again.
+```bash
 alias kilit-ac='sudo chattr -i'
+```
+# [TR] Bulunulan dizindeki dosyaların kernel seviyesindeki özel kilit ve öznitelik durumlarını listeler.
+# [EN] Lists the kernel-level special locks and attribute statuses of the files in the current directory.
+```bash
 alias kilit-kontrol='lsattr'
 ```
 
