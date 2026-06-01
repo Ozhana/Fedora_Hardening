@@ -1,0 +1,33 @@
+# 🛡️ Enterprise-Grade `.bashrc` Hardening & Telemetry Suite
+
+*(Scroll down for the Turkish version / Türkçe versiyon için aşağı kaydırın)*
+
+## 🇬🇧 ENGLISH
+
+### Purpose and Philosophy
+Standard Linux users rely on basic aliases to save time (e.g., `alias ll='ls -al'`). This suite is **not** for standard users. This repository provides an "Enterprise-Grade" architectural layer embedded directly into your `.bashrc`. It operates on the **"Don't Assume, Verify"** and **"Zero-Trust"** engineering principles. 
+
+The goal is to give system administrators, data analysts, and security engineers microscopic control over kernel modules, deterministic telemetry (via AWK), and cryptographic data destruction.
+
+### How It Hardens Your System (Defense in Depth)
+* **Kernel Isolation:** Disables USB storage at the `modprobe` level. Even if a physical device bypasses hardware filters, the OS cannot mount or read the file system.
+* **Immutable Architecture:** Enforces Ext4/Btrfs `chattr +i` locks on critical files. Even compromised `root` accounts cannot alter or delete your sealed configurations.
+* **Baseline Poisoning Prevention:** Implements a strict "Human-in-the-loop" approval flow for Rkhunter, preventing automated systems from accidentally signing malicious binaries as safe.
+* **Forensic-Grade Destruction:** Destroys sensitive files using the 3-pass Gutmann/DoD method with a final zero-fill (`shred -u -z -n 3`), leaving no magnetic residue for data recovery tools.
+
+<br>
+
+## 🇹🇷 TÜRKÇE
+
+### Amaç ve Felsefe
+Standart Linux kullanıcıları zaman kazanmak için basit kısayollar kullanır. Bu paket standart kullanıcılar için **değildir**. Bu depo, doğrudan `.bashrc` dosyanızın içine entegre edilen "Kurumsal Düzey" bir mimari katman sunar. **"Varsayımda Bulunma, Doğrula"** ve **"Sıfır Hata (Zero-Trust)"** mühendislik prensipleriyle çalışır.
+
+Amaç; sistem yöneticilerine, veri analistlerine ve siber güvenlik uzmanlarına çekirdek modülleri, deterministik telemetri (AWK matrisleri) ve kriptografik veri imhası üzerinde mikroskobik bir kontrol sağlamaktır.
+
+### Sistemi Nasıl Zırhlar? (Derinlemesine Savunma)
+* **Çekirdek İzolasyonu:** USB depolama sürücülerini `modprobe` seviyesinde söker. Zararlı bir fiziksel cihaz donanım filtrelerini geçse bile, işletim sistemi veri okuyamaz.
+* **Değiştirilemez Mimari (Immutable):** Kritik dosyalara Ext4/Btrfs `chattr +i` kilidi vurur. Sistemi ele geçiren bir `root` kullanıcısı dahi mühürlü konfigürasyonlarınızı silemez veya değiştiremez.
+* **Baseline Zehirlenmesi Koruması:** Rkhunter taramaları için katı bir "İnsan Onayı" (Human-in-the-loop) akışı uygular. Zararlı dosyaların sisteme yanlışlıkla "güvenli" olarak kaydedilmesini engeller.
+* **Kriptografik İmha:** Hassas dosyaları 3 geçişli Gutmann/DoD yöntemiyle atomlarına ayırır ve son turda sıfır (`0`) yazar. Adli bilişim (Forensics) araçlarının veriyi kurtarma ihtimalini %0'a indirir.
+
+> **Yazar / Author:** Dr. Ozhan Akdag
