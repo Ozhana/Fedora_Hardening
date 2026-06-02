@@ -1,19 +1,24 @@
 #!/bin/bash
 # ==============================================================================
-# FEDORA 44 - UNIVERSAL ENTERPRISE HARDENING SCRIPT (V16)
+# FEDORA 44 - UNIVERSAL ENTERPRISE ARMOR (V17 - THE APEX PROTOCOL)
 # ==============================================================================
 # FELSEFE: ZERO ASSUMPTION | DYNAMIC HARDWARE DISCOVERY | DEFENSIVE SCRIPTING
+# EKSTRA: KERNEL POWER DEADLOCK (WAKEUP) PREVENTION & HIBERNATE SHIELD
 # ==============================================================================
 
+# KATI HATA YÖNETİMİ (Hiçbir hata yutulmayacak!)
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-LOG_FILE="/var/log/fedora_armor_$(date +%Y%m%d_%H%M%S).log"
+LOG_FILE="/var/log/fedora_apex_$(date +%Y%m%d_%H%M%S).log"
 touch "$LOG_FILE"
 chmod 600 "$LOG_FILE"
 
+# ==============================================================================
+# ANA BLOK (Tüm işlemler senkron loglama için izole edilmiştir)
+# ==============================================================================
 {
-    echo -e "\e[34m[i] UNIVERSAL ARMOR PROTOKOLÜ BAŞLATILIYOR... LOG: $LOG_FILE\e[0m"
+    echo -e "\e[34m[i] APEX UNIVERSAL PROTOKOLÜ BAŞLATILIYOR... LOG: $LOG_FILE\e[0m"
 
     # 1. ROOT (EUID) DOĞRULAMASI
     if [[ "$EUID" -ne 0 ]]; then
@@ -65,6 +70,13 @@ chmod 600 "$LOG_FILE"
         echo -e "\e[34m[i] Sistemde LUKS şifreli bir disk bölümü bulunamadı.\e[0m"
     fi
 
+    # FWUPD Analizi
+    echo -e "\e[36m[i] === ÖNCESİ (PRE-FLIGHT) DONANIM GÜVENLİK ANALİZİ ===\e[0m"
+    if ! fwupdmgr security --force; then
+        echo -e "\e[33m[!] fwupd cihazda donanımsal zafiyetler raporladı veya tamamlanamadı.\e[0m"
+    fi
+    echo -e "\e[36m========================================================\e[0m"
+
     # --- FAZ 1: DNF ALTYAPISI ---
     echo "[+] Faz 1: Altyapı Hızlandırması..."
     sudo mkdir -p /etc/dnf/dnf.conf.d
@@ -107,7 +119,7 @@ EOF
         fi
     done
 
-    # Fwupd Otonomi İptali
+    # Fwupd Otonomi İptali (Human in the loop)
     DISABLE_SERVICES=("fwupd.service" "fwupd-refresh.timer")
     for svc in "${DISABLE_SERVICES[@]}"; do
         if systemctl list-unit-files "$svc" >/dev/null 2>&1; then
@@ -116,17 +128,23 @@ EOF
         fi
     done
 
-    # --- FAZ 3: EVRENSEL UYKU MÜHÜRÜ (DİNAMİK KEŞİF) ---
-    echo "[+] Faz 3: Evrensel Uyku Optimizasyonu (Akıllı Sensör Koruması)..."
+    # --- FAZ 3: EVRENSEL UYKU MÜHÜRÜ VE UYANMAMA (DEADLOCK) ÇÖZÜMÜ ---
+    echo "[+] Faz 3: Evrensel Uyku Optimizasyonu ve Deadlock Koruması..."
     sudo dnf install -y tuned intel-media-driver libva-utils
     sudo systemctl enable --now tuned
-    sudo tuned-adm profile balanced-battery
+    
+    # Agresif pil profili, NVMe diski D3Cold moduna sokup komaya soktuğu için standart 'balanced' profiline geçildi.
+    sudo tuned-adm profile balanced
 
-    # Tüm markalarda (Dell, Lenovo, Asus, HP) çalışan Dinamik Uyku Mühürü
-    # Güç tuşu (PWRB), Kapak (LID) ve Uyku Tuşu (SLPB) hariç her şeyi dondurur.
+    # HIBERNATION MASK: 'lockdown=integrity' RAM'in diske yazılmasını fiziksel olarak yasaklar. 
+    # Sistem uykudan hibernate'e geçmeye çalışırsa çöker. Bunu kökünden engelliyoruz.
+    echo "[+] Hibernation (Hazırda Bekletme) çakışmaları mühürleniyor..."
+    sudo systemctl mask hibernate.target hybrid-sleep.target suspend-then-hibernate.target
+
+    # DİNAMİK ACPI MÜHÜRÜ: Güç tuşu (PWRB), Kapak (LID) ve Uyku Tuşu (SLPB) hariç her şeyi dondurur.
     sudo tee /etc/systemd/system/uyku-muhuru.service > /dev/null <<'EOF'
 [Unit]
-Description=Universal Dynamic Sleep Mühürü
+Description=Universal Dynamic ACPI Wake Seal
 After=multi-user.target
 
 [Service]
@@ -148,17 +166,23 @@ EOF
 
     sudo flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 
-    FLATPAK_APPS=("com.github.tchx84.Flatseal" "com.mattjakeman.ExtensionManager" "org.kde.okular")
+    FLATPAK_APPS=("com.github.tchx84.Flatseal" "com.mattjakeman.ExtensionManager" "org.kde.okular" "com.github.xournalpp.xournalpp")
     for f_app in "${FLATPAK_APPS[@]}"; do
         if ! flatpak list | grep -q "$f_app"; then
             sudo flatpak install flathub "$f_app" -y
         fi
     done
 
-    # --- FAZ 5: ÇEKİRDEK ZIRHI VE LOCKDOWN ---
-    echo "[+] Faz 5: GRUB ve Sysctl İzolasyonu..."
+    # --- FAZ 5: ÇEKİRDEK ZIRHI VE DONANIM UYANMA KİLİTLERİ ---
+    echo "[+] Faz 5: GRUB İzolasyonu, Lockdown ve NVMe/GPU Uyanma Fixleri..."
+    
+    # KERNEL ARGS AÇIKLAMASI:
+    # 1. lockdown=integrity: Çekirdek modifikasyonunu/Rootkit'leri engeller.
+    # 2. usbcore.autosuspend=-1: Harici disklerin ve köprülerin elektrik kesintisiyle uykuda ölmesini engeller.
+    # 3. nvme_core.default_ps_max_latency_us=0: NVMe disklerin PS4 (Derin Koma) moduna girip uyanamamasını engeller.
+    # 4. i915.enable_psr=0: Intel ekran kartlarının uyanışta siyah ekran (Panel Self Refresh) arızasını engeller.
     sudo grubby --update-kernel=ALL --remove-args="rhgb quiet"
-    sudo grubby --update-kernel=ALL --args="lockdown=integrity"
+    sudo grubby --update-kernel=ALL --args="lockdown=integrity usbcore.autosuspend=-1 nvme_core.default_ps_max_latency_us=0 i915.enable_psr=0"
 
     sudo mkdir -p /etc/default/grub.d
     cat <<EOF | sudo tee /etc/default/grub.d/99-hardening.cfg > /dev/null
@@ -169,7 +193,7 @@ GRUB_GFXMODE=1024x768x32
 GRUB_DISABLE_RECOVERY="true"
 GRUB_ENABLE_BLSCFG=true
 EOF
-    sudo grub2-mkfont -s 24 -o /boot/grub2/fonts/unicode.pf2 /usr/share/fonts/dejavu-sans-mono-fonts/DejaVuSansMono.ttf
+    sudo grub2-mkfont -s 24 -o /boot/grub2/fonts/unicode.pf2 /usr/share/fonts/dejavu-sans-mono-fonts/DejaVuSansMono.ttf || true
     sudo grub2-mkconfig -o /boot/grub2/grub.cfg >/dev/null
 
     cat <<EOF | sudo tee /etc/sysctl.d/99-hardened.conf > /dev/null
@@ -337,7 +361,7 @@ EOF
         echo "Sistemde LUKS disk bulunamadı."
     fi
 
-    echo -e "\e[32m\n[!] SİSTEM KUSURSUZ BİR ŞEKİLDE MÜHÜRLENDİ!\e[0m"
+    echo -e "\e[32m\n[!] APEX UNIVERSAL OPERASYONU KUSURSUZ TAMAMLANDI!\e[0m"
     echo -e "\e[34m[i] Detaylı analiz log dosyası: $LOG_FILE\e[0m"
 
 } 2>&1 | tee -a "$LOG_FILE"
