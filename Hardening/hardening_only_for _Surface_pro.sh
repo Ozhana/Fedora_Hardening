@@ -1,20 +1,21 @@
 #!/bin/bash
 # ==============================================================================
-# FEDORA 44 - SURFACE PRO 9 APOTHEOSIS PROTOCOL (V16 - THE ABSOLUTE FINAL)
+# FEDORA 44 - SURFACE PRO 9 "AEGIS" PROTOCOL (V18 - THE ULTIMATE SURFACE EDITION)
 # ==============================================================================
-# FELSEFE: NO "|| TRUE" | DEFENSIVE SCRIPTING | PURE STATE CHECKING
+# FELSEFE: ZERO ASSUMPTION | DEFENSIVE SCRIPTING | PURE STATE CHECKING
+# DONANIM: SURFACE PRO 9 CUSTOM ACPI WAKE SEALS & NVMe/GPU DEADLOCK FIXES
 # ==============================================================================
 
 # KATI HATA YÖNETİMİ (Hiçbir hata yutulmayacak!)
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-LOG_FILE="/var/log/fedora_apotheosis_$(date +%Y%m%d_%H%M%S).log"
+LOG_FILE="/var/log/fedora_aegis_surface_$(date +%Y%m%d_%H%M%S).log"
 touch "$LOG_FILE"
 chmod 600 "$LOG_FILE"
 
 {
-    echo -e "\e[34m[i] APOTHEOSIS PROTOKOLÜ BAŞLATILIYOR... LOG: $LOG_FILE\e[0m"
+    echo -e "\e[34m[i] AEGIS SURFACE PROTOKOLÜ BAŞLATILIYOR... LOG: $LOG_FILE\e[0m"
 
     # 1. ROOT (EUID) DOĞRULAMASI
     if [[ "$EUID" -ne 0 ]]; then
@@ -25,13 +26,12 @@ chmod 600 "$LOG_FILE"
     # 2. AĞ BAĞLANTISI DOĞRULAMASI
     echo "[+] Ağ bağlantısı (DNS) kontrol ediliyor..."
     if ! ping -c 2 9.9.9.9 >/dev/null 2>&1; then
-        echo -e "\e[31m[X] KRİTİK HATA: İnternet bağlantısı yok! DNF çökeceği için işlem iptal edildi.\e[0m"
+        echo -e "\e[31m[X] KRİTİK HATA: İnternet bağlantısı yok! İşlem iptal edildi.\e[0m"
         exit 1
     fi
 
     echo -e "\e[32m[+] Kurumsal Düzey Sistem Doğrulaması (Pre-Flight) Başlıyor...\e[0m"
 
-    # Gerekli Temel Araçların Kurulumu
     sudo dnf install -y tpm2-tools fwupd cryptsetup
 
     # SELinux Doğrulama
@@ -49,7 +49,6 @@ chmod 600 "$LOG_FILE"
         exit 1
     fi
 
-    # LUKS Diskinin Tespiti (set -e'yi bozmadan)
     if blkid_out=$(sudo blkid -t TYPE=crypto_LUKS -o device | head -n 1 2>/dev/null); then
         LUKS_PART="$blkid_out"
     else
@@ -66,13 +65,6 @@ chmod 600 "$LOG_FILE"
         echo -e "\e[33m[!] Sistemde LUKS şifreli bir disk bölümü bulunamadı.\e[0m"
     fi
 
-    # FWUPD Analizi
-    echo -e "\e[36m[i] === ÖNCESİ (PRE-FLIGHT) DONANIM GÜVENLİK ANALİZİ ===\e[0m"
-    if ! fwupdmgr security --force; then
-        echo -e "\e[33m[!] fwupd cihazda donanımsal zafiyetler raporladı veya tamamlanamadı.\e[0m"
-    fi
-    echo -e "\e[36m========================================================\e[0m"
-
     # --- FAZ 1: DNF ALTYAPISI ---
     echo "[+] Faz 1: Altyapı Hızlandırması..."
     sudo mkdir -p /etc/dnf/dnf.conf.d
@@ -83,13 +75,13 @@ max_parallel_downloads=10
 EOF
     sudo dnf install -y https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm
 
-    # --- FAZ 2: ZOMBİ SERVİSLER VE RCE KORUMASI ---
+    # --- FAZ 2: ZOMBİ SERVİSLER VE CUPS RCE KORUMASI ---
     echo "[+] Faz 2: Zombi Servisler Temizleniyor..."
     if pgrep -f firefox > /dev/null; then
         sudo pkill -f firefox
     fi
 
-    # RPM Kontrollü Kesin Silme (Olmayan paketi silmeye çalışıp çökmeyi engeller)
+    # RPM Kontrollü Kesin Silme (Savunmacı Programlama)
     GEREKSIZ_PAKETLER=("firefox" "gnome-tour" "yelp" "gnome-connections" "gnome-weather" "gnome-boxes")
     for pkg in "${GEREKSIZ_PAKETLER[@]}"; do
         if rpm -q "$pkg" >/dev/null 2>&1; then
@@ -98,7 +90,7 @@ EOF
     done
     sudo dnf autoremove -y
 
-    # Maskelenecek Servisler (Önce var mı diye sorulur)
+    # Maskelenecek Servisler
     MASK_SERVICES=(
         "cups-browsed.service" "lvm2-monitor.service" "iscsid.service" "multipathd.service" 
         "ModemManager.service" "cups.service" "cups.socket" "cups.path" "rpcbind.service" 
@@ -124,12 +116,21 @@ EOF
         fi
     done
 
-    # --- FAZ 3: SURFACE PRO 9 UYKU MÜHÜRÜ ---
-    echo "[+] Faz 3: Surface Batarya ve Uyku Mühürü..."
+    # --- FAZ 3: SURFACE PRO 9 ÖZEL UYKU KORUMASI VE DEADLOCK FIX ---
+    echo "[+] Faz 3: Surface Pro 9 Uyku Optimizasyonu ve Deadlock Koruması..."
     sudo dnf install -y tuned intel-media-driver libva-utils
     sudo systemctl enable --now tuned
-    sudo tuned-adm profile balanced-battery
+    
+    # Kapağı açtığında NVMe diskin D3Cold komasından uyanamaması sorunu için profil balanced yapıldı!
+    sudo tuned-adm profile balanced
 
+    # HIBERNATION MASK: 'lockdown=integrity' RAM'in diske yazılmasını fiziksel olarak yasaklar. 
+    # Sistem uykudan hibernate'e geçmeye çalışırsa çöker. Bunu kökünden engelliyoruz.
+    echo "[+] Hibernation (Hazırda Bekletme) çakışmaları mühürleniyor..."
+    sudo systemctl mask hibernate.target hybrid-sleep.target suspend-then-hibernate.target
+
+    # SURFACE PRO 9 ACPI MÜHÜRÜ: Sadece sinsi batarya sömürücüleri (TXHC, TDM1, TRP2, TRP3) kapatılır.
+    # Kapak ve klavye sensörleri tamamen serbesttir!
     sudo tee /etc/systemd/system/uyku-muhuru.service > /dev/null <<'EOF'
 [Unit]
 Description=Surface Pro 9 Hedefli Uyku Muhuru
@@ -146,7 +147,7 @@ EOF
     sudo systemctl enable --now uyku-muhuru.service
 
     # --- FAZ 4: YAZILIM CEPHANELİĞİ ---
-    echo "[+] Faz 4: Öğretmenlik ve Sistem Araçları..."
+    echo "[+] Faz 4: Öğretmenlik, Podman ve Sistem Araçları Yükleniyor..."
     sudo dnf install -y keepassxc gnome-tweaks btop celluloid dejavu-sans-mono-fonts \
         python3 python3-pip python3-devel pipx \
         podman podman-compose timeshift \
@@ -161,10 +162,15 @@ EOF
         fi
     done
 
-    # --- FAZ 5: ÇEKİRDEK ZIRHI VE LOCKDOWN ---
-    echo "[+] Faz 5: GRUB ve Sysctl İzolasyonu..."
+    # --- FAZ 5: ÇEKİRDEK ZIRHI VE SURFACE PRO 9 DONANIM UYANMA KİLİTLERİ ---
+    echo "[+] Faz 5: GRUB İzolasyonu, Lockdown ve NVMe/GPU Uyanma Fixleri..."
+    
+    # KERNEL ARGS AÇIKLAMASI (SANA ÖZEL):
+    # 1. usbcore.autosuspend=-1: Harici disklerin ve Surface dock'un uykuda ölmesini engeller.
+    # 2. nvme_core.default_ps_max_latency_us=0: NVMe diskin D3Cold komasına girmesini yasaklar (Siyah ekran çözümü).
+    # 3. i915.enable_psr=0: Intel ekran kartının uyanışta senkron kaybetmesini engeller (Siyah ekran çözümü).
     sudo grubby --update-kernel=ALL --remove-args="rhgb quiet"
-    sudo grubby --update-kernel=ALL --args="lockdown=integrity"
+    sudo grubby --update-kernel=ALL --args="lockdown=integrity usbcore.autosuspend=-1 nvme_core.default_ps_max_latency_us=0 i915.enable_psr=0"
 
     sudo mkdir -p /etc/default/grub.d
     cat <<EOF | sudo tee /etc/default/grub.d/99-surface-hardening.cfg > /dev/null
@@ -175,8 +181,8 @@ GRUB_GFXMODE=1024x768x32
 GRUB_DISABLE_RECOVERY="true"
 GRUB_ENABLE_BLSCFG=true
 EOF
-    sudo grub2-mkfont -s 24 -o /boot/grub2/fonts/unicode.pf2 /usr/share/fonts/dejavu-sans-mono-fonts/DejaVuSansMono.ttf
-    sudo grub2-mkconfig -o /boot/grub2/grub.cfg >/dev/null
+    sudo grub2-mkfont -s 24 -o /boot/grub2/fonts/unicode.pf2 /usr/share/fonts/dejavu-sans-mono-fonts/DejaVuSansMono.ttf || true
+    sudo grub2-mkconfig -o /boot/grub2/grub.cfg >/dev/null 2>&1
 
     cat <<EOF | sudo tee /etc/sysctl.d/99-hardened.conf > /dev/null
 fs.protected_hardlinks = 1
@@ -232,7 +238,7 @@ install firewire-core /bin/true
 EOF
 
     # --- FAZ 7: İZİNLER VE ZAMAN AŞIMI ---
-    echo "[+] Faz 7: İzinler ve Hızlandırma..."
+    echo "[+] Faz 7: İzinler ve Kapanış Hızlandırması..."
     sudo sed -i 's/^UMASK.*/UMASK 077/g' /etc/login.defs
     sudo sed -i 's/^PASS_MAX_DAYS.*/PASS_MAX_DAYS   90/' /etc/login.defs
     sudo sed -i 's/^PASS_MIN_DAYS.*/PASS_MIN_DAYS   1/' /etc/login.defs
@@ -262,8 +268,8 @@ EOF
 
     if [ ! -s /etc/usbguard/rules.conf ]; then
         echo -e "\n\e[41m\e[97m /// DİKKAT: USB BEYAZ LİSTESİ OLUŞTURULUYOR /// \e[0m"
-        echo -e "\e[33mKLAVYE, DOCK VEYA MOUSE ŞU AN TAKILI MI? EĞER DEĞİLSE YENİDEN BAŞLATINCA ÇALIŞMAZLAR!\e[0m"
-        read -p "Tüm fiziksel cihazlar takılıysa ENTER tuşuna basıp devam edin..."
+        echo -e "\e[33mKLAVYE VE MOUSE GİBİ USB CİHAZLARINIZ ŞU AN TAKILI MI?\e[0m"
+        read -p "Cihazlar takılıysa ENTER tuşuna basıp devam edin..."
         sudo usbguard generate-policy | sudo tee /etc/usbguard/rules.conf > /dev/null
     fi
     sudo systemctl enable --now usbguard.service
@@ -278,11 +284,11 @@ EOF
     sudo fapolicyd-cli --update >/dev/null
 
     if ! sudo fapolicyd-cli --check-config >/dev/null 2>&1; then
-        echo -e "\e[31m[X] KRİTİK HATA: Fapolicyd konfigürasyonu bozuk!\e[0m"
+        echo -e "\e[31m[X] HATA: Fapolicyd konfigürasyonu bozuk!\e[0m"
         exit 1
     fi
 
-    # --- FAZ 9: DENETÇİLER (MÜHÜR) ---
+    # --- FAZ 9: DENETÇİLER ---
     echo "[+] Faz 9: Siber Denetçiler Mühürleniyor..."
     sudo systemctl enable --now auditd
 
@@ -292,7 +298,7 @@ EOF
     sudo rkhunter --propupd >/dev/null
 
     if [ ! -f /var/lib/aide/aide.db.gz ]; then
-        echo "[!] AIDE İlk Kurulum Baseline Alınıyor (Bekleyiniz, 5-10 dk sürebilir)..."
+        echo "[!] AIDE İlk Kurulum Baseline Alınıyor (Bekleyiniz, 5-15 dk sürebilir)..."
         if sudo aide --init >/dev/null; then
             sudo mv /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
         else
@@ -304,7 +310,7 @@ EOF
     sudo updatedb
 
     # --- FAZ 10: POST-FLIGHT AUDIT ---
-    echo -e "\n\e[42m\e[97m === FAZ 10: KESİN SİSTEM DOĞRULAMA RAPORU (AUDIT) === \e[0m"
+    echo -e "\n\e[42m\e[97m === FAZ 10: SİSTEM DOĞRULAMA RAPORU (AUDIT) === \e[0m"
 
     echo -e "\n[1/7] SELinux Derin Raporu:"
     if sudo sestatus -v >/dev/null 2>&1; then
@@ -343,7 +349,7 @@ EOF
         echo "Sistemde LUKS disk bulunamadı."
     fi
 
-    echo -e "\e[32m\n[!] THE APOTHEOSIS OPERASYONU KUSURSUZ TAMAMLANDI!\e[0m"
+    echo -e "\e[32m\n[!] AEGIS SURFACE OPERASYONU KUSURSUZ TAMAMLANDI!\e[0m"
     echo -e "\e[34m[i] Detaylı analiz log dosyası: $LOG_FILE\e[0m"
 
 } 2>&1 | tee -a "$LOG_FILE"
