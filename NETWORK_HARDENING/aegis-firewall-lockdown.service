@@ -1,0 +1,23 @@
+[Unit]
+Description=Aegis-Network Phase 1: Transactional Firewalld Hardening (V7)
+After=firewalld.service
+Wants=firewalld.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/aegis-firewall-secure.sh
+RemainAfterExit=yes
+
+# Hardening / Güvenlik Çerçevesi (DBus uyumlu)
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/etc/firewalld
+PrivateTmp=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+RestrictAddressFamilies=AF_UNIX AF_NETLINK AF_INET AF_INET6
+MemoryDenyWriteExecute=true
+
+[Install]
+WantedBy=multi-user.target
