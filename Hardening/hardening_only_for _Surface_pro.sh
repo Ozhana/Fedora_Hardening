@@ -226,7 +226,14 @@ wifi.cloned-mac-address=random
 ethernet.cloned-mac-address=random
 hostname-mode=none
 EOF
-    sudo hostnamectl set-hostname localhost
+
+
+    PREFIX_POOL=("DESKTOP" "LAPTOP")
+    RANDOM_PREFIX=${PREFIX_POOL[$((RANDOM % 2))]}
+    RANDOM_SUFFIX=$(head /dev/urandom | tr -dc 'A-Z0-9' | head -c 7)
+    FAKE_WINDOWS_HOSTNAME="${RANDOM_PREFIX}-${RANDOM_SUFFIX}"
+    echo "[+] Ağdaki gözlemcileri yanıltmak için sahte Windows kimliği atanıyor: $FAKE_WINDOWS_HOSTNAME"
+    sudo hostnamectl set-hostname "$FAKE_WINDOWS_HOSTNAME"
     sudo systemctl restart NetworkManager
 
     cat <<EOF | sudo tee /etc/modprobe.d/blacklist-prots.conf > /dev/null
