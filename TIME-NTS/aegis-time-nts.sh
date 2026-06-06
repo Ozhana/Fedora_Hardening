@@ -1,33 +1,5 @@
 #!/usr/bin/env bash
 # V30_AEGIS: Chrony NTS (Network Time Security) Zırhı - Absolute Zero Assumption
-
-# 1. Kök Yetki Kontrolü
-if [[ $EUID -ne 0 ]]; then
-   echo "[FATAL] Bu operasyon ROOT yetkisi gerektirir."
-   exit 1
-fi
-
-# 2. Bağımlılık ve Çevre Testi (The Verify Protocol)
-# Chrony kurulu mu? NTS desteği var mı?
-if ! command -v chronyd &> /dev/null; then
-    echo "[FATAL] 'chrony' paketi yüklü değil. 'sudo dnf install chrony' ile kurun."
-    exit 1
-fi
-
-# NTS desteği var mı? (Grep sınırları V3 ile güçlendirildi)
-if ! chronyd -v 2>&1 | grep -qE "(^|[[:space:]])\+NTS([[:space:]]|$)"; then
-    echo "[FATAL] Kurulu 'chrony' sürümü NTS (Network Time Security) desteklemiyor."
-    exit 1
-fi
-
-# 3. İdempotency (Zaten yapılandırılmış mı?)
-# Eğer Aegis bloğu zaten varsa, yapılandırmayı bozma (Do No Harm)
-if grep -q "# V30.2_AEGIS" /etc/chrony.conf; then
-    echo "[INFO] Sistem zaten Aegis NTS zırhı ile mühürlenmiş. İşlem iptal."
-    exit 0
-fi
-
-
 set -Eeuo pipefail
 IFS=$'\n\t'
 
@@ -44,7 +16,7 @@ for cmd in chronyd chronyc systemctl flock awk grep sed cp rm mv timeout bash mk
 done
 
 # 1. NTS ve Parser Kabiliyet Doğrulaması (Verify Before Trust)
-if ! chronyd -v | grep -q 'NTS'; then
+if ! chronyd -v | grep -q '+NTS'; then
     echo "[FATAL] Kurulu Chrony sürümü NTS (+NTS) desteği ile derlenmemiş!"
     exit 1
 fi
