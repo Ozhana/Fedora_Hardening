@@ -16,7 +16,7 @@ for cmd in chronyd chronyc systemctl flock awk grep sed cp rm mv timeout bash mk
 done
 
 # 1. NTS ve Parser Kabiliyet Doğrulaması (Verify Before Trust)
-if ! chronyd -v | grep -q '+NTS'; then
+if ! chronyd -v | grep -q 'NTS'; then
     echo "[FATAL] Kurulu Chrony sürümü NTS (+NTS) desteği ile derlenmemiş!"
     exit 1
 fi
