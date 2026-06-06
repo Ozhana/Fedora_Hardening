@@ -14,7 +14,7 @@
 | ENGLISH | TÜRKÇE |
 | :--- | :--- |
 | **1. Installation Path:** Place the script in the secure administrative directory. | **1. Kurulum Dizini:** Betiği yönetici araçları için ayrılmış güvenli dizine yerleştirin: |
-| `sudo cp aegis-time-nts /usr/local/bin/aegis-time-nts` | `sudo cp aegis-time-nts /usr/local/bin/aegis-time-nts` |
+| `sudo curl -o /usr/local/bin/aegis-time-nts https://raw.githubusercontent.com/Ozhana/Fedora_Hardening/main/TIME-NTS/aegis-time-nts.sh` | `sudo curl -o /usr/local/bin/aegis-time-nts https://raw.githubusercontent.com/Ozhana/Fedora_Hardening/main/TIME-NTS/aegis-time-nts.sh` |
 | `sudo chmod 700 /usr/local/bin/aegis-time-nts` | `sudo chmod 700 /usr/local/bin/aegis-time-nts` |
 | **2. Execution & Mühürleme:** Execute with root privileges. It will automatically backup, validate, and seal your time configuration. | **2. Çalıştırma:** Root yetkisiyle çalıştırın. Betik otomatik olarak yedekleme yapar, doğrular ve yapılandırmanızı mühürler. |
 | `sudo aegis-time-nts` | `sudo aegis-time-nts` |
