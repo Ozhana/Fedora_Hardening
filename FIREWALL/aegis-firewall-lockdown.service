@@ -1,0 +1,28 @@
+[Unit]
+Description=Aegis-Network V7.1 - Transactional Firewall Lockdown (Docker Optimized)
+After=network.target firewalld.service docker.service
+Before=network-online.target
+Wants=firewalld.service docker.service
+Conflicts=iptables.service nftables.service
+DefaultDependencies=no
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/aegis-firewall-secure.sh
+
+# --- SYSTEMD SANDBOX REALIGNMENT ---
+# Betiğin /etc/firewalld altındaki XML dosyalarını okuyup yedekleyebilmesi için tam izin veriyoruz
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/etc/firewalld
+
+# Güvenli çekirdek korumaları (Docker ve D-Bus iletişimini engellemeyen sıkılaştırmalar)
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
