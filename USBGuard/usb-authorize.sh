@@ -1,12 +1,3 @@
-#!/bin/bash
-# ==============================================================================
-# ENTERPRISE-GRADE USB AUTHORIZATION MATRIX (V4 - Native Mühürleme)
-# ==============================================================================
-# AUTHOR: Dr. Ozhan Akdag 
-# DESC  : BadUSB ve RubberDucky korumalı (Human-in-the-loop) cihaz onaylama betiği.
-#         USBGuard native komutları ve anlık durum senkronizasyonu kullanır.
-# ==============================================================================
-
 #!/usr/bin/env bash
 # ==============================================================================
 # AEGIS KATMAN-02a — USBGuard Zero-Trust (TEMİZ REVİZYON)
