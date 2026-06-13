@@ -82,7 +82,7 @@ EOF
     fi
 
     # RPM Kontrollü Kesin Silme (Savunmacı Programlama)
-    GEREKSIZ_PAKETLER=("firefox" "gnome-tour" "yelp" "gnome-connections" "gnome-weather" "gnome-boxes")
+    GEREKSIZ_PAKETLER=("firefox" "gnome-tour" "yelp" "gnome-connections" "gnome-weather" "gnome-boxes" "httpd" "httpd-filesystem" "httpd-tools")
     for pkg in "${GEREKSIZ_PAKETLER[@]}"; do
         if rpm -q "$pkg" >/dev/null 2>&1; then
             sudo dnf remove -y "$pkg"
