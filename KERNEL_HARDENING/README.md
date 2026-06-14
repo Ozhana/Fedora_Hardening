@@ -1,158 +1,19 @@
-# 🛡️ Aegis Kernel Hardening & Runtime Memory Isolation
+# 🛡️ Aegis Kernel Hardening Shield
+## Military-Grade Runtime Memory Protection & Sysctl Isolation (V12-FINAL)
 
-[![Layer](https://img.shields.io/badge/Aegis--Shield-Layer%200-red?style=for-the-badge)](https://github.com/Ozhana/Fedora_Hardening)
-[![Target](https://img.shields.io/badge/Target-Fedora%2044%2F45%20Workstation-blue?style=for-the-badge)](https://getfedora.org)
-[![Platform](https://img.shields.io/badge/Hardware-Surface%20Pro%209%20%2F%20Generic%20x86__64-orange?style=for-the-badge)](https://github.com/Ozhana/Fedora_Hardening)
-[![Audit](https://img.shields.io/badge/Audit-Military--Grade%20Red%2FBlue-brightgreen?style=for-the-badge)](#)
-[![Bash](https://img.shields.io/badge/Bash-5.2%2B-4EAA25?style=for-the-badge&logo=gnu-bash&logoColor=white)](#)
-[![Version](https://img.shields.io/badge/Version-12.0--FINAL-gold?style=for-the-badge)](#)
-
----
-
-## 🎯 Bu Betik Ne İşe Yarar?
-
-Linux çekirdeği varsayılan olarak **esnek** davranır. Bu esneklik, bir saldırganın:
-
-- Çekirdek bellek adreslerini okuyup exploit planlamasını,
-- Çalışan süreçlerin hafızasını izleyip şifre/token çalmasını,
-- Sembolik link manipülasyonlarıyla yetki yükseltmesini,
-- Sistem çökmeye yakınken exploit zincirini tamamlamasını
-
-mümkün kılar. **Aegis Kernel Hardening**, bu açık kapıları teker teker kapatarak çekirdeği bir **kalkan** haline getirir.
-
-> 💡 **Basitçe:** Bu betik, bilgisayarınızın "beynini" (kernel) kurşun geçirmez bir zırha sokar. Çalıştırdıktan sonra, bir saldırganın sisteminize sızsa bile hafızayı okuması, süreçleri izlemesi veya yetki yükseltmesi katlanarak zorlaşır.
-
----
-
-## 📋 Neleri Değiştirir? (Ne Beklemeli?)
-
-| Parametre | Ne Yapar? | Günlük Kullanıma Etkisi |
-|:---|:---|:---|
-| `kernel.kptr_restrict=2` | Kernel bellek adreslerini **root dahil** herkesten gizler | Yok |
-| `kernel.dmesg_restrict=1` | Sistem loglarını sadece root okuyabilir | `dmesg` komutu sadece `sudo` ile çalışır |
-| `fs.protected_symlinks=1` | Sembolik link saldırılarını engeller | Yok |
-| `fs.protected_hardlinks=1` | Hardlink manipülasyonunu engeller | Yok |
-| `kernel.yama.ptrace_scope=2` | Süreç izlemeyi sadece root yapabilir | `strace`, `gdb` sadece `sudo` ile |
-| `net.core.bpf_jit_harden=2` | eBPF JIT derleyicisini sertleştirir | Yok |
-| `kernel.randomize_va_space=2` | ASLR'yi maksimuma çıkarır | Yok |
-| `kernel.panic_on_oops=1` | Kernel hatasında sistem **hemen çöker** | ⚠️ Nadir kernel oops'larında ani restart |
-
-> ⚠️ **Önemli:** `kernel.panic_on_oops=1` ayarı, ufak bir kernel hatasında bile sistemin aniden yeniden başlamasına neden olur. Bu, saldırganın yarı-çökmüş bir sistemi sömürmesini engeller, ama beklenmedik restart'lara hazır olun.
-
----
-
-## 🧠 Standart vs Agresif Mod
-
-Betik çalışırken size iki seçenek sunar:
-
-### 🟢 Standart Mod (Önerilen)
-- Günlük kullanıma uygun
-- Docker, systemd, geliştirme araçları çalışmaya devam eder
-- Temel kernel korumalarını etkinleştirir
-
-### 🔴 Agresif Mod (Maksimum Güvenlik)
-- **Geri alınamaz** sürgüler içerir:
-  - `modules_disabled=1`: Sisteme yeni kernel modülü yüklenemez
-  - `kexec_load_disabled=1`: Canlı kernel değiştirilemez
-  - `unprivileged_userns_clone=0`: Rootless konteyner çalışmaz
-- Yüksek güvenlikli sunucular için uygun
-- Surface Pro 9'da bazı donanım sürücüleri etkilenebilir
-
----
-
-## 🚀 Nasıl Kullanılır?
-
-### 1. Önkoşul: Yama LSM'i Etkinleştirme
-
-`ptrace_scope` koruması için Yama LSM aktif olmalıdır. Aşağıdaki komutu çalıştırıp sistemi **yeniden başlatın**:
-
-```bash
-sudo grubby --update-kernel=ALL --args="security=yama"
-sudo reboot
-```
-
-2. Betik İndirme ve Çalıştırma
-bash
-
-# Ham betiği indir
-wget https://raw.githubusercontent.com/Ozhana/Fedora_Hardening/main/KERNEL_HARDENING/aegis-kernel-hardening.sh
-
-# Veya curl ile
-curl -O https://raw.githubusercontent.com/Ozhana/Fedora_Hardening/main/KERNEL_HARDENING/aegis-kernel-hardening.sh
-
-# Çalıştırılabilir yap
-chmod +x aegis-kernel-hardening.sh
-
-# Root olarak çalıştır
-sudo ./aegis-kernel-hardening.sh
-
-3. Etkileşimli Soruları Yanıtlayın
-```text
-
-🛡️  AEGIS KERNEL HARDENING & MEMORY ISOLATION (V12-FINAL)
-
-[SORU 1/3]: AGRESİF MOD etkinleştirilsin mi?
-  GERİ ALINAMAZ SÜRGÜLER İÇERİR: modules_disabled, kexec_load_disabled
-  [E/e] Evet, [H/h] Hayır: h   ← Günlük kullanım için "h"
-
-[SORU 2/3]: BPF lockdown (unprivileged_bpf_disabled=1) uygulansın mı?
-  [E/e] Evet, [H/h] Hayır: e   ← Önerilen: "e"
-
-[SORU 3/3]: Operasyonu nihai olarak onaylayın.
-  Token [a1b2c3d4]: a1b2c3d4   ← Ekrandaki tokeni aynen yazın
-```
-
-4. Başarılı Çıktı
-```text
-
-✅ [BAŞARILI] Çekirdek bellek zırhı ve süreç hiyerarşisi mühürlendi.
-```
-
-🔒 Güvenlik Mimarisi (Teknik Detaylar)
-Özellik	Açıklama
-Atomik Kilit	/run/aegis/ altında kernel seviyesi flock, çifte çalıştırmayı engeller, PID doğrulaması yapar
-Pre-flight Test	Parametreler canlı kernel'e yazılmadan önce /proc/sys üzerinde yazılabilirlik kontrolü
-Latch Sıralaması	Geri alınamaz parametreler (modules_disabled vb.) en son uygulanır
-Idempotent	1000 kez çalıştırılsa da sistemi bozmaz, zaten uygulanmışsa hemen çıkar
-Crash-Consistent	mv (rename syscall) ile atomik disk yazımı, BTRFS journal güvencesi
-Token Doğrulama	/dev/urandom tabanlı kriptografik token, otomasyonu engeller
-Adli Loglama	/var/log/aegis/kernel_hardening.log + journald çift log
-📁 Log Dosyaları
-Konum	İçerik
-/var/log/aegis/kernel_hardening.log	Yapılandırılmış operasyon logu
-/etc/sysctl.d/99-aegis-kernel-hardening.conf	Kalıcı kernel parametreleri
-/run/aegis/	Geçici kilit ve çalışma dosyaları (reboot'ta silinir)
-❓ Sık Sorulan Sorular
-
-S: Betiği tekrar çalıştırırsam ne olur?<br>C: Hiçbir şey. Betik idempotent'tir, mevcut durumu kontrol eder ve "zaten mühürlü" diyerek çıkar.
-S: Agresif modu sonradan kapatabilir miyim?<br>C: Hayır. modules_disabled=1 ve kexec_load_disabled=1 geri alınamaz. Sadece reboot ile temizlenebilir, ama bu parametreler sysctl.conf dosyasına yazıldığı için her boot'ta tekrar uygulanır. Manuel olarak /etc/sysctl.d/99-aegis-kernel-hardening.conf dosyasını silip reboot etmeniz gerekir.
-
-S: Docker/Podman çalışmaya devam eder mi?<br>C: Standart modda: Evet. Agresif modda: Rootless Docker/Podman çalışmaz, rootful Docker çalışır.
-
-S: Surface Pro 9'a özel bir ayar var mı?<br>C: Hayır, betik tamamen donanımdan bağımsızdır. Surface Pro 9, Fedora 44 ile tam uyumludur. Sadece kernel.panic_on_oops=1 ayarı, Surface'ın Wi-Fi/dokunmatik sürücülerinde nadir oops durumunda sistemi restart edebilir.
-
-S: Neden sync komutu kullanılmıyor?<br>C: BTRFS dosya sistemi, rename (mv) işlemini journal ile korur. Fazladan sync çağrısı tüm sistemi etkileyen gereksiz bir I/O fırtınası yaratır ve SSD ömrünü kısaltır.
-🗺️ Fedora Hardening Yol Haritası
-
-Bu betik, Layer 0 (Kernel Hardening) katmanıdır. Tam sistem sıkılaştırması için:
-```text
-
-Layer 0: Kernel Hardening        ← BU BETİK
-Layer 1: Network Hardening       ← Sıradaki
-Layer 2: SELinux & User Space
-Layer 3: Filesystem & Permissions
-Layer 4: Boot & Physical Security
-Layer 5: Monitoring & IDS
-```
-
-📜 Lisans
-
-Bu proje MIT License altında lisanslanmıştır.
-
-🛡️ Yoldaş Düsturu: "Tahmin etme, doğrula. Esnekliği kapat, zırhı kuşan."
-text
-
-
----
-
-Bu README.md, **teknik bilgisi olmayan bir kullanıcının bile** betiğin ne yaptığını anlamasını, nasıl çalıştıracağını bilmesini ve ne bekleyeceğini öğrenmesini sağlayacak şekilde yazıldı. 🛡️
+| ENGLISH | TÜRKÇE |
+| :--- | :--- |
+| **Introduction**<br>This script applies a zero-trust, military-grade hardening layer directly to the Linux kernel at runtime. Designed specifically for Fedora 44+ on Surface Pro 9 hardware, it eliminates entire classes of local privilege escalation exploits by locking down kernel pointer leaks, process tracing, BPF abuse, and link manipulation attacks. It uses atomic file-descriptor locks, crash-consistent atomic `rename()` operations, and a strict "ask-before-latching" human authorization flow for irreversible parameters. | **Giriş**<br>Bu betik, Linux çekirdeğine çalışma zamanında sıfır-güvenli, askeri-düzey bir sıkılaştırma katmanı uygular. Surface Pro 9 donanımında Fedora 44+ için özel olarak tasarlanmış olup; çekirdek işaretçi sızıntılarını, süreç izlemeyi, BPF istismarını ve bağlantı manipülasyonu saldırılarını kilitleyerek yerel yetki yükseltme saldırılarının tüm sınıflarını ortadan kaldırır. Atomik dosya tanımlayıcı kilitleri, çökme-uyumlu atomik `rename()` işlemleri ve geri alınamaz parametreler için katı bir "uygulamadan önce sor" insan onay akışı kullanır. |
+| **What It Protects Against**<br>• Kernel pointer leaks (`kptr_restrict=2`)<br>• dmesg information disclosure (`dmesg_restrict=1`)<br>• Symlink/hardlink TOCTOU races<br>• RAM scraping via ptrace (`ptrace_scope=2`)<br>• BPF JIT exploitation (`bpf_jit_harden=2`)<br>• ASLR bypass (`randomize_va_space=2`)<br>• Post-oops exploit chaining (`panic_on_oops=1`)<br>• Unprivileged BPF loading (optional latch)<br>• Kernel module loading (aggressive mode latch)<br>• kexec kernel replacement (aggressive mode latch) | **Nelere Karşı Korur**<br>• Çekirdek işaretçi sızıntıları (`kptr_restrict=2`)<br>• dmesg bilgi ifşası (`dmesg_restrict=1`)<br>• Sembolik/sabit bağlantı TOCTOU yarışları<br>• ptrace ile RAM kazıma (`ptrace_scope=2`)<br>• BPF JIT istismarı (`bpf_jit_harden=2`)<br>• ASLR atlatma (`randomize_va_space=2`)<br>• Oops sonrası istismar zincirleme (`panic_on_oops=1`)<br>• Ayrıcalıksız BPF yükleme (isteğe bağlı sürgü)<br>• Çekirdek modülü yükleme (agresif mod sürgüsü)<br>• kexec ile çekirdek değiştirme (agresif mod sürgüsü) |
+| **⚠️ CRITICAL: IRREVERSIBLE LATCHES**<br>This script contains parameters that become **permanently locked** once applied and **cannot be reverted** even with a reboot:<br>• `kernel.unprivileged_bpf_disabled=1`<br>• `kernel.modules_disabled=1`<br>• `kernel.kexec_load_disabled=1`<br><br>Each of these is gated behind an interactive `[E/e] Yes, [H/h] No` prompt. Read carefully before accepting. | **⚠️ KRİTİK: GERİ ALINAMAZ SÜRGÜLER**<br>Bu betik, bir kez uygulandığında **kalıcı olarak kilitlenen** ve yeniden başlatmayla bile **geri alınamayan** parametreler içerir:<br>• `kernel.unprivileged_bpf_disabled=1`<br>• `kernel.modules_disabled=1`<br>• `kernel.kexec_load_disabled=1`<br><br>Her biri etkileşimli bir `[E/e] Evet, [H/h] Hayır` sorusunun ardından uygulanır. Kabul etmeden önce dikkatlice okuyun. |
+| **Compatibility**<br>• **OS:** Fedora 44+ Workstation (systemd-sysctl required)<br>• **Hardware:** Surface Pro 9 (NVMe SSD, BTRFS filesystem)<br>• **Kernel:** Linux 6.x+ (Yama LSM must be enabled)<br>• **Dependencies:** Zero. Pure Bash, no external packages.<br>• **Filesystem:** Tested on BTRFS. Ext4/XFS compatible. | **Uyumluluk**<br>• **İşletim Sistemi:** Fedora 44+ Workstation (systemd-sysctl gerekli)<br>• **Donanım:** Surface Pro 9 (NVMe SSD, BTRFS dosya sistemi)<br>• **Çekirdek:** Linux 6.x+ (Yama LSM etkin olmalı)<br>• **Bağımlılık:** Sıfır. Saf Bash, harici paket yok.<br>• **Dosya Sistemi:** BTRFS üzerinde test edildi. Ext4/XFS uyumlu. |
+| **Step 1: Verify Yama LSM**<br>Ensure the Yama Linux Security Module is active (required for `ptrace_scope`).<br><br><code>cat /proc/sys/kernel/yama/ptrace_scope</code><br><br>If the file does not exist, enable Yama:<br><code>sudo grubby --update-kernel=ALL --args="security=yama"</code><br><code>sudo reboot</code> | **Adım 1: Yama LSM'i Doğrulayın**<br>Yama Linux Güvenlik Modülü'nün aktif olduğundan emin olun (`ptrace_scope` için gereklidir).<br><br><code>cat /proc/sys/kernel/yama/ptrace_scope</code><br><br>Dosya mevcut değilse Yama'yı etkinleştirin:<br><code>sudo grubby --update-kernel=ALL --args="security=yama"</code><br><code>sudo reboot</code> |
+| **Step 2: Download the Script**<br>Pull the latest production-ready hardening script directly from the repository.<br><br><code>curl -O https://raw.githubusercontent.com/Ozhana/Fedora_Hardening/main/KERNEL_HARDENING/aegis-kernel-hardening.sh</code><br><br>Verify the file was downloaded completely:<br><code>wc -l aegis-kernel-hardening.sh</code> | **Adım 2: Betiği İndirin**<br>En son üretime hazır sıkılaştırma betiğini doğrudan depodan çekin.<br><br><code>curl -O https://raw.githubusercontent.com/Ozhana/Fedora_Hardening/main/KERNEL_HARDENING/aegis-kernel-hardening.sh</code><br><br>Dosyanın eksiksiz indirildiğini doğrulayın:<br><code>wc -l aegis-kernel-hardening.sh</code> |
+| **Step 3: Make Executable & Run**<br>Set the execution bit and launch with root privileges. The script will guide you through an interactive 3-question authorization flow before making any changes.<br><br><code>chmod +x aegis-kernel-hardening.sh</code><br><code>sudo ./aegis-kernel-hardening.sh</code><br><br>You will be asked:<br>1. Enable AGGRESSIVE MODE? (modules/kexec lockdown)<br>2. Enable BPF lockdown? (unprivileged_bpf_disabled)<br>3. Enter a random hex token to confirm execution | **Adım 3: Çalıştırılabilir Yapın ve Çalıştırın**<br>Çalıştırma bitini ayarlayın ve root yetkileriyle başlatın. Betik, herhangi bir değişiklik yapmadan önce sizi 3 soruluk etkileşimli bir yetkilendirme akışından geçirecektir.<br><br><code>chmod +x aegis-kernel-hardening.sh</code><br><code>sudo ./aegis-kernel-hardening.sh</code><br><br>Size sorulacaklar:<br>1. AGRESİF MOD etkinleştirilsin mi? (modules/kexec kilitleme)<br>2. BPF kilitleme etkinleştirilsin mi? (unprivileged_bpf_disabled)<br>3. İşlemi onaylamak için rastgele hex token'ı girin |
+| **Step 4: Verify Applied Settings**<br>After successful execution, confirm all parameters are live. The script writes its configuration to a persistent file and applies every parameter to the running kernel.<br><br><code>cat /etc/sysctl.d/99-aegis-kernel-hardening.conf</code><br><br>Spot-check critical parameters:<br><code>sysctl kernel.kptr_restrict</code><br><code>sysctl kernel.yama.ptrace_scope</code><br><code>sysctl kernel.randomize_va_space</code><br><code>sysctl net.core.bpf_jit_harden</code> | **Adım 4: Uygulanan Ayarları Doğrulayın**<br>Başarılı çalıştırmadan sonra tüm parametrelerin canlı olduğunu onaylayın. Betik, yapılandırmasını kalıcı bir dosyaya yazar ve her parametreyi çalışan çekirdeğe uygular.<br><br><code>cat /etc/sysctl.d/99-aegis-kernel-hardening.conf</code><br><br>Kritik parametreleri örnekleme ile kontrol edin:<br><code>sysctl kernel.kptr_restrict</code><br><code>sysctl kernel.yama.ptrace_scope</code><br><code>sysctl kernel.randomize_va_space</code><br><code>sysctl net.core.bpf_jit_harden</code> |
+| **Step 5: Review Audit Logs**<br>All operations are logged with timestamps to `/var/log/aegis/kernel_hardening.log` and also pushed to the systemd journal.<br><br><code>sudo cat /var/log/aegis/kernel_hardening.log</code><br><code>sudo journalctl -t aegis-kernel --no-pager</code> | **Adım 5: Denetim Loglarını İnceleyin**<br>Tüm işlemler zaman damgalarıyla birlikte `/var/log/aegis/kernel_hardening.log` dosyasına kaydedilir ve ayrıca systemd günlüğüne iletilir.<br><br><code>sudo cat /var/log/aegis/kernel_hardening.log</code><br><code>sudo journalctl -t aegis-kernel --no-pager</code> |
+| **Idempotency: Run It 1000 Times**<br>The script is fully idempotent. If all target parameters are already at their desired values and the configuration file exists, it prints a green success message and exits immediately without making any changes. Safe to run repeatedly, safe to include in post-install automation. | **Idempotentlik: 1000 Kere Çalıştırın**<br>Betik tamamen idempotenttir. Tüm hedef parametreler zaten istenen değerlerdeyse ve yapılandırma dosyası mevcutsa, yeşil bir başarı mesajı yazdırır ve hiçbir değişiklik yapmadan hemen çıkar. Tekrar tekrar çalıştırmak güvenlidir, kurulum sonrası otomasyona dahil etmek güvenlidir. |
+| **Crash Safety**<br>If the script is interrupted (power loss, CTRL+C, kill signal), the atomic lock is automatically released and temporary files are cleaned up on the next execution. The persistent configuration file is written via an atomic `mv` (rename) operation, guaranteeing it is never left in a half-written state on BTRFS journaling. No `sync -f` storms, no SSD write amplification. | **Çökme Güvenliği**<br>Betik kesintiye uğrarsa (elektrik kesintisi, CTRL+C, kill sinyali), atomik kilit otomatik olarak serbest bırakılır ve geçici dosyalar bir sonraki çalıştırmada temizlenir. Kalıcı yapılandırma dosyası atomik bir `mv` (rename) işlemi ile yazılır, BTRFS günlüklemesinde asla yarım yazılmış durumda kalmaz. `sync -f` fırtınası yok, SSD yazma amplifikasyonu yok. |
+| **Architecture Highlights**<br>• **Atomic PID-Verified Lock:** `flock` with file descriptor, PID match on cleanup to prevent race-condition lock theft.<br>• **Separate Latch Ordering:** Irreversible parameters (`modules_disabled`, `kexec_load_disabled`, `unprivileged_bpf_disabled`) are always applied last to prevent "half-locked" system states.<br>• **Pre-flight Writable Check:** Every `/proc/sys/` path is tested for write access before any modification is attempted.<br>• **Post-Auth Idempotency:** Configuration comparison happens after user authorization, ensuring aggressive-mode parameters are included in the check. | **Mimari Öne Çıkanlar**<br>• **Atomik PID-Doğrulamalı Kilit:** Dosya tanımlayıcı ile `flock`, yarış durumu kilit hırsızlığını önlemek için temizlikte PID eşleşmesi.<br>• **Ayrık Sürgü Sıralaması:** Geri alınamaz parametreler (`modules_disabled`, `kexec_load_disabled`, `unprivileged_bpf_disabled`) "yarı kilitli" sistem durumlarını önlemek için her zaman en son uygulanır.<br>• **Ön-Uçuş Yazılabilirlik Kontrolü:** Her `/proc/sys/` yolu, herhangi bir değişiklik yapılmadan önce yazma erişimi için test edilir.<br>• **Yetki-Sonrası Idempotentlik:** Yapılandırma karşılaştırması kullanıcı yetkilendirmesinden sonra gerçekleşir, agresif mod parametrelerinin kontrole dahil edilmesini sağlar. |
+| **Manual Uninstall / Rollback**<br>To remove the hardening configuration and revert to kernel defaults:<br><br><code>sudo rm /etc/sysctl.d/99-aegis-kernel-hardening.conf</code><br><code>sudo sysctl --system</code><br><code>sudo reboot</code><br><br>**Note:** Parameters marked as irreversible latches (`modules_disabled=1`, `unprivileged_bpf_disabled=1`, `kexec_load_disabled=1`) will **not** revert with this method. They require a full system reboot and kernel command-line override to undo. | **Manuel Kaldırma / Geri Alma**<br>Sıkılaştırma yapılandırmasını kaldırmak ve çekirdek varsayılanlarına dönmek için:<br><br><code>sudo rm /etc/sysctl.d/99-aegis-kernel-hardening.conf</code><br><code>sudo sysctl --system</code><br><code>sudo reboot</code><br><br>**Not:** Geri alınamaz sürgü olarak işaretlenen parametreler (`modules_disabled=1`, `unprivileged_bpf_disabled=1`, `kexec_load_disabled=1`) bu yöntemle **geri dönmez**. Geri almak için tam sistem yeniden başlatması ve çekirdek komut satırı geçersiz kılması gerekir. |
+| **Repository Path**<br>`KERNEL_HARDENING/aegis-kernel-hardening.sh` | **Depo Yolu**<br>`KERNEL_HARDENING/aegis-kernel-hardening.sh` |
