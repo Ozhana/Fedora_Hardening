@@ -3,8 +3,8 @@
 # BETİK ADI      : aegis-docker-hardening.sh
 # AMAÇ           : Docker'ı Localhost'a Bağlar, DNAT & Firewalld Bypass'ı Kapatır
 # YAZAN          : Dr. Ozhan Akdag & Senior Cyber Security Agent
-# SÜRÜM          : 6.3.0 (Nftables Uyumluluk Yamalı - Verified Production)
-# KRİTER         : Pure Bash, Jq-Fallback, Nftables-Aware Verification
+# SÜRÜM          : 6.4.0 (iptables -C Validated - IPv6 Safe - Production Ready)
+# KRİTER         : Pure Bash, Jq-Fallback, IPv6 Dynamic, Idempotent
 # ==============================================================================
 set -Eeuo pipefail
 IFS=$'\n\t'
@@ -114,9 +114,13 @@ check_prerequisites() {
         exit 1
     fi
     
+    # IPv6 durumunu bir kez belirle
     if [[ -f /proc/sys/net/ipv6/conf/all/disable_ipv6 ]] && [[ $(cat /proc/sys/net/ipv6/conf/all/disable_ipv6) -eq 0 ]]; then
         IPV6_ENABLED=true
+    else
+        IPV6_ENABLED=false
     fi
+    log_message "INFO" "IPv6 enabled: ${IPV6_ENABLED}"
 }
 
 # ---- ATOMİK KİLİT ----
@@ -132,34 +136,44 @@ acquire_lock() {
     log_message "INFO" "Lock acquired (PID: $$)"
 }
 
-# ---- DOCKER-USER ZİNCİR GARANTİSİ ----
+# ---- DOCKER-USER ZİNCİR GARANTİSİ (Idempotent) ----
 ensure_docker_user_chain_exists() {
     if ! iptables -L DOCKER-USER -n &>/dev/null; then
         iptables -N DOCKER-USER 2>/dev/null || true
+    fi
+    # FORWARD yönlendirmesi yoksa ekle
+    if ! iptables -C FORWARD -j DOCKER-USER 2>/dev/null; then
         iptables -I FORWARD -j DOCKER-USER 2>/dev/null || true
     fi
     
-    if [[ "${IPV6_ENABLED}" == "true" ]] && ! ip6tables -L DOCKER-USER -n &>/dev/null; then
-        ip6tables -N DOCKER-USER 2>/dev/null || true
-        ip6tables -I FORWARD -j DOCKER-USER 2>/dev/null || true
+    if [[ "${IPV6_ENABLED}" == "true" ]]; then
+        if ! ip6tables -L DOCKER-USER -n &>/dev/null; then
+            ip6tables -N DOCKER-USER 2>/dev/null || true
+        fi
+        if ! ip6tables -C FORWARD -j DOCKER-USER 2>/dev/null; then
+            ip6tables -I FORWARD -j DOCKER-USER 2>/dev/null || true
+        fi
     fi
+    log_message "INFO" "DOCKER-USER chain(s) ensured"
 }
 
-# ---- IDEMPOTENCY KONTROLLERİ ----
+# ---- IDEMPOTENCY: DOCKER CONFIG ----
 is_docker_config_already_correct() {
     [[ ! -f "${DOCKER_CONFIG}" ]] && return 1
     
     local current_ip current_ip6 current_userland
     current_ip=$(grep -o '"ip"[[:space:]]*:[[:space:]]*"[^"]*"' "${DOCKER_CONFIG}" 2>/dev/null | head -1 | cut -d'"' -f4 || echo "")
-    current_ip6=$(grep -o '"ip6"[[:space:]]*:[[:space:]]*"[^pure_config]*"' "${DOCKER_CONFIG}" 2>/dev/null | head -1 | cut -d'"' -f4 || echo "")
     current_userland=$(grep -o '"userland-proxy"[[:space:]]*:[[:space:]]*[^,}]*' "${DOCKER_CONFIG}" 2>/dev/null | grep -o 'true\|false' | head -1 || echo "")
     
     [[ "${current_ip}" == "127.0.0.1" ]] || return 1
     [[ "${current_userland}" == "false" ]] || return 1
     
     if [[ "${IPV6_ENABLED}" == "true" ]]; then
+        current_ip6=$(grep -o '"ip6"[[:space:]]*:[[:space:]]*"[^"]*"' "${DOCKER_CONFIG}" 2>/dev/null | head -1 | cut -d'"' -f4 || echo "")
         [[ "${current_ip6}" == "::1" ]] || return 1
     else
+        # IPv6 kapalı: ip6 anahtarı ya olmamalı ya da değeri "::1" olmamalı (ama varlığı sorun değil)
+        current_ip6=$(grep -o '"ip6"[[:space:]]*:[[:space:]]*"[^"]*"' "${DOCKER_CONFIG}" 2>/dev/null | head -1 | cut -d'"' -f4 || echo "")
         if [[ -n "${current_ip6}" ]] && [[ "${current_ip6}" != "::1" ]]; then
             return 1
         fi
@@ -167,22 +181,20 @@ is_docker_config_already_correct() {
     return 0
 }
 
+# ---- IDEMPOTENCY: FIREWALL (Kernel seviyesinde iptables kontrolü) ----
 is_firewall_already_hardened() {
-    local active_rules
-    active_rules=$(firewall-cmd --direct --get-all-rules 2>/dev/null || echo "")
-    
-    # Doğrudan Firewalld'nin canlı direct tablosunu Bash bellek içi tarıyoruz
-    [[ "${active_rules}" == *"icmp-host-prohibited"* ]] || return 1
+    iptables -C DOCKER-USER -j REJECT --reject-with icmp-host-prohibited 2>/dev/null || return 1
     if [[ "${IPV6_ENABLED}" == "true" ]]; then
-        [[ "${active_rules}" == *"icmp6-adm-prohibited"* ]] || return 1
+        ip6tables -C DOCKER-USER -j REJECT --reject-with icmp6-adm-prohibited 2>/dev/null || return 1
     fi
     return 0
 }
 
-# ---- PROTOKOL İCRA PROTOKOLÜ ----
+# ---- ANA SIKILAŞTIRMA MATRİSİ ----
 apply_hardening_matrix() {
-    # ---- 1. ADIM: DOCKER CONFIG YAPILANDIRILMASI ----
+    # 1. DOCKER CONFIG
     if ! is_docker_config_already_correct; then
+        printf '%b' "${BLUE}[*] Phase 1: Updating Docker daemon.json for localhost binding...${NC}\n"
         local temp_config
         temp_config=$(mktemp -p "${LOCK_DIR}" docker.XXXXXX.tmp) || exit 1
         
@@ -195,12 +207,12 @@ apply_hardening_matrix() {
             fi
             
             if [[ ${is_valid} -eq 0 ]]; then
-                printf '%b' "${YELLOW}[!] Existing daemon.json is malformed. Moving to quarantine.${NC}\n"
+                printf '%b' "${YELLOW}[!] Existing daemon.json malformed. Moving to quarantine.${NC}\n"
                 mv "${DOCKER_CONFIG}" "${DOCKER_CONFIG}.corrupt_$(date +%Y%m%d_%H%M%S)"
             else
                 DOCKER_CONFIG_BACKUP="${DOCKER_CONFIG}.aegis_bak_$(date +%Y%m%d_%H%M%S)"
                 cp -a "${DOCKER_CONFIG}" "${DOCKER_CONFIG_BACKUP}"
-                log_message "INFO" "Docker backup created: ${DOCKER_CONFIG_BACKUP}"
+                log_message "INFO" "Docker backup: ${DOCKER_CONFIG_BACKUP}"
             fi
         fi
         
@@ -234,14 +246,14 @@ EOF
         fi
         mv "${temp_config}" "${DOCKER_CONFIG}"
         chmod 0644 "${DOCKER_CONFIG}"
-        log_message "INFO" "Docker json matrisi güncellendi."
+        log_message "INFO" "Docker daemon.json updated"
     else
-        printf '%b' "${GREEN}✅ Docker daemon.json configuration already correct.${NC}\n"
+        printf '%b' "${GREEN}✅ Docker daemon.json already correct.${NC}\n"
     fi
 
-    # ---- 2. ADIM: KALICI SIKILAŞTIRMA KATMANININ DISKE YAZILMASI ----
+    # 2. FIREWALL DIRECT.XML
     if ! is_firewall_already_hardened; then
-        printf '%b' "${BLUE}[*] Phase 2: Deploying Aegis Shield matrix directly into permanent storage...${NC}\n"
+        printf '%b' "${BLUE}[*] Phase 2: Deploying Aegis Shield matrix to permanent storage...${NC}\n"
         
         if [[ -f "${DIRECT_XML}" ]]; then
             FIREWALL_BACKUP="${DIRECT_XML}.aegis_bak_$(date +%Y%m%d_%H%M%S)"
@@ -270,31 +282,22 @@ EOF
 EOF
         chmod 0600 "${tmp_xml}"
         mv "${tmp_xml}" "${DIRECT_XML}"
-        log_message "INFO" "Firewalld direct.xml disk katmanına mühürlendi."
+        log_message "INFO" "direct.xml written"
     else
-        printf '%b' "${GREEN}✅ Firewalld direct.xml configuration already contains Aegis matrix.${NC}\n"
+        printf '%b' "${GREEN}✅ Firewalld direct.xml already contains Aegis matrix.${NC}\n"
     fi
 
-    # ---- 3. ADIM: MOTORUN UYANDIRILMASI VE FIREWALLD SENKRONİZASYONU ----
-    printf '%b' "${BLUE}[*] Phase 3: Triggering Docker engine reload to enforce Netfilter synchronization...${NC}\n"
-    systemctl restart docker
-    
-    # Hem kalıcı hafızayı hem canlı soyutlama ağacını temiz senkronize et
+    # 3. RELOAD & RESTART
+    printf '%b' "${BLUE}[*] Phase 3: Reloading firewalld and restarting Docker...${NC}\n"
     firewall-cmd --reload >/dev/null 2>&1
+    systemctl restart docker
 
-    # ---- 4. ADIM: ADLİ KERNEL VE SOYUTLAMA DOĞRULAMASI (Nftables Compat Modu) ----
-    printf '%b' "${BLUE}[*] Phase 4: Commencing forensic verification loop on live runtime tree...${NC}\n"
+    # 4. KERNEL DOĞRULAMA (iptables -C)
+    printf '%b' "${BLUE}[*] Phase 4: Forensic verification on live kernel tree...${NC}\n"
     local verified=false
     local max_retries=10
-    
     for ((i=1; i<=max_retries; i++)); do
-        # MODERATİF DOĞRULAMA ENGINE: Hem soyutlama tablosundan hem de iptables-save (nft-compat) dökümünden sorgula
-        local runtime_check=""
-        runtime_check=$(firewall-cmd --direct --get-all-rules 2>/dev/null || echo "")
-        local native_check=""
-        native_check=$(iptables-save 2>/dev/null || echo "")
-        
-        if [[ "${runtime_check}" == *"icmp-host-prohibited"* ]] || [[ "${native_check}" == *"icmp-host-prohibited"* ]]; then
+        if iptables -C DOCKER-USER -j REJECT --reject-with icmp-host-prohibited 2>/dev/null; then
             verified=true
             break
         fi
@@ -302,7 +305,8 @@ EOF
     done
 
     if [[ "${verified}" == "false" ]]; then
-        printf '%b' "${RED}[-] ARCHITECTURE FAILURE: Kernel validation timed out. Rules missing from active Netfilter tree!${NC}\n" >&2
+        printf '%b' "${RED}[-] ARCHITECTURE FAILURE: REJECT rule not found in DOCKER-USER chain!${NC}\n" >&2
+        iptables -L DOCKER-USER -n 2>/dev/null || true
         exit 1
     fi
 }
@@ -311,31 +315,30 @@ EOF
 main() {
     clear
     printf '%b' "${BLUE}${BOLD}========================================================================${NC}\n"
-    printf '%b' "${CYAN}${BOLD}    🛡️  INCORPORATED AEGIS DOCKER HARDENING v6.3.0 (Nftables Final Baseline)${NC}\n"
+    printf '%b' "${CYAN}${BOLD}    🛡️  AEGIS DOCKER HARDENING v6.4.0 (Kernel-Verified Production)${NC}\n"
     printf '%b' "${BLUE}${BOLD}========================================================================${NC}\n"
     
     ensure_docker_user_chain_exists
 
+    # İdempotency kontrolü: hem config hem firewall doğru mu?
     if is_docker_config_already_correct && is_firewall_already_hardened; then
-        # Son bir kez de canlı kernel durumuna bakıp sağlamsa pas geç
-        local native_check
-        native_check=$(iptables-save 2>/dev/null || echo "")
-        if [[ "${native_check}" == *"icmp-host-prohibited"* ]]; then
-            printf '%b' "${GREEN}✅ [IDEMPOTENT] Full ecosystem hardened and active in live kernel. Stand down.${NC}\n"
-            log_message "INFO" "Ecosystem state is stable."
-            exit 0
-        fi
+        printf '%b' "${GREEN}✅ [IDEMPOTENT] Full ecosystem already hardened and active. Stand down.${NC}\n"
+        log_message "INFO" "Idempotent exit, nothing to do."
+        exit 0
     fi
 
     apply_hardening_matrix
 
     printf '%b' "${BLUE}------------------------------------------------------------------------${NC}\n"
-    printf '%b' "${GREEN}✅ SUCCESS: Hardening Applied and Verified via Nftables-Aware Engine.${NC}\n"
-    printf '%b' "   Ecosystem fully synchronized against Fedora's abstraction layers.\n"
+    printf '%b' "${GREEN}✅ SUCCESS: Hardening applied and kernel-verified.${NC}\n"
+    printf '%b' "   - Published ports: localhost only\n"
+    printf '%b' "   - Container-to-container: private subnets only\n"
+    printf '%b' "   - External → container: BLOCKED\n"
     printf '%b' "${BLUE}========================================================================${NC}\n"
-    log_message "SUCCESS" "Full hardening completed (v6.3.0)"
+    log_message "SUCCESS" "Full hardening completed v6.4.0"
 }
 
+# ---- YÜRÜTME ----
 check_prerequisites
 acquire_lock
 main
