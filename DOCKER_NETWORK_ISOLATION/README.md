@@ -1,3 +1,4 @@
+mkdir -p ~/aegis-docker-installer && cd ~/aegis-docker-installer && cat << 'EOF' > README.md
 # 🛡️ Aegis Docker Network Isolation – Enterprise Hardening
 
 | ENGLISH | TÜRKÇE |
@@ -43,7 +44,7 @@
 
 | ENGLISH | TÜRKÇE |
 |---------|--------|
-| <code>ss -tulpn \| grep docker-proxy</code><br><br>Should show only <code>127.0.0.1:xxxx</code> listeners.<br><br><code>iptables -v -L DOCKER-USER -n</code><br><br>Must contain the REJECT rule at the end.<br><br><code>ip6tables -v -L DOCKER-USER -n</code><br><br>(only if IPv6 is enabled) must show <code>icmp6-adm-prohibited</code>. | <code>ss -tulpn \| grep docker-proxy</code><br><br>Sadece <code>127.0.0.1:xxxx</code> dinleyicilerini göstermeli.<br><br><code>iptables -v -L DOCKER-USER -n</code><br><br>Sonda REJECT kuralını içermeli.<br><br><code>ip6tables -v -L DOCKER-USER -n</code><br><br>(sadece IPv6 aktifse) <code>icmp6-adm-prohibited</code> göstermeli. |
+| <code>ss -tulpn | grep docker-proxy</code><br><br>Should show only <code>127.0.0.1:xxxx</code> listeners.<br><br><code>iptables -v -L DOCKER-USER -n</code><br><br>Must contain the REJECT rule at the end.<br><br><code>ip6tables -v -L DOCKER-USER -n</code><br><br>(only if IPv6 is enabled) must show <code>icmp6-adm-prohibited</code>. | <code>ss -tulpn | grep docker-proxy</code><br><br>Sadece <code>127.0.0.1:xxxx</code> dinleyicilerini göstermeli.<br><br><code>iptables -v -L DOCKER-USER -n</code><br><br>Sonda REJECT kuralını içermeli.<br><br><code>ip6tables -v -L DOCKER-USER -n</code><br><br>(sadece IPv6 aktifse) <code>icmp6-adm-prohibited</code> göstermeli. |
 
 ---
 
@@ -51,7 +52,7 @@
 
 | ENGLISH | TÜRKÇE |
 |---------|--------|
-| The script automatically creates timestamped backups before changes:<br><br><code>/etc/docker/daemon.json.aegis_bak_YYYYMMDD_HHMMSS</code><br><code>/etc/firewalld/direct.xml.aegis_bak_YYYYMMDD_HHMMSS</code><br><br>**Manual rollback:**<br><br><code>sudo cp /etc/docker/daemon.json.aegis_bak_\* /etc/docker/daemon.json</code><br><code>sudo systemctl restart docker</code><br><code>sudo cp /etc/firewalld/direct.xml.aegis_bak_\* /etc/firewalld/direct.xml</code><br><code>sudo firewall-cmd --reload</code> | Betik, değişiklik öncesinde zaman damgalı yedekler oluşturur:<br><br><code>/etc/docker/daemon.json.aegis_bak_YYYYMMDD_HHMMSS</code><br><code>/etc/firewalld/direct.xml.aegis_bak_YYYYMMDD_HHMMSS</code><br><br>**Manuel geri dönüş:**<br><br><code>sudo cp /etc/docker/daemon.json.aegis_bak_\* /etc/docker/daemon.json</code><br><code>sudo systemctl restart docker</code><br><code>sudo cp /etc/firewalld/direct.xml.aegis_bak_\* /etc/firewalld/direct.xml</code><br><code>sudo firewall-cmd --reload</code> |
+| The script automatically creates timestamped backups before changes:<br><br><code>/etc/docker/daemon.json.aegis_bak_YYYYMMDD_HHMMSS</code><br><code>/etc/firewalld/direct.xml.aegis_bak_YYYYMMDD_HHMMSS</code><br><br>**Manual rollback:**<br><br><code>sudo cp /etc/docker/daemon.json.aegis_bak_* /etc/docker/daemon.json</code><br><code>sudo systemctl restart docker</code><br><code>sudo cp /etc/firewalld/direct.xml.aegis_bak_* /etc/firewalld/direct.xml</code><br><code>sudo firewall-cmd --reload</code> | Betik, değişiklik öncesinde zaman damgalı yedekler oluşturur:<br><br><code>/etc/docker/daemon.json.aegis_bak_YYYYMMDD_HHMMSS</code><br><code>/etc/firewalld/direct.xml.aegis_bak_YYYYMMDD_HHMMSS</code><br><br>**Manuel geri dönüş:**<br><br><code>sudo cp /etc/docker/daemon.json.aegis_bak_* /etc/docker/daemon.json</code><br><code>sudo systemctl restart docker</code><br><code>sudo cp /etc/firewalld/direct.xml.aegis_bak_* /etc/firewalld/direct.xml</code><br><code>sudo firewall-cmd --reload</code> |
 
 ---
 
@@ -69,11 +70,11 @@
 
 ## 🤝 Author / Yazar
 
-**Dr. Ozhan Akdag & Senior Cyber Security Agent (Collaborative design)**  
-*Enterprise-grade hardening for Fedora Workstation – Surface Pro 9 & similar*
+**Dr. Ozhan Akdag & Senior Cyber Security Agent (Collaborative design)** *Enterprise-grade hardening for Fedora Workstation – Surface Pro 9 & similar*
 
 ---
 
 ## 📜 License / Lisans
 
 MIT – free to use, share, and modify with credit.
+EOF
