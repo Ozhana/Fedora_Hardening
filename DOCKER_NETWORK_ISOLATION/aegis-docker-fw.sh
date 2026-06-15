@@ -3,7 +3,8 @@
 # BETİK ADI      : aegis-docker-hardening.sh
 # AMAÇ           : Docker'ı Localhost'a Bağlar, DNAT & Firewalld Bypass'ı Kapatır
 # YAZAN          : Dr. Ozhan Akdag & Senior Cyber Security Agent
-# SÜRÜM          : 6.6.0 (Direct Firewalld Rules - No XML Dependency)
+# SÜRÜM          : 7.0.0 (Direct Passthrough - Atomic Rule Injection)
+# KRİTER         : No iptables-restore, per-rule addition, full idempotency
 # ==============================================================================
 set -Eeuo pipefail
 IFS=$'\n\t'
@@ -26,9 +27,11 @@ readonly MAX_LOG_SIZE_MB=50
 
 readonly DOCKER_CONFIG="/etc/docker/daemon.json"
 
+# Durum bayrakları
 LOCK_FD_ACQUIRED="false"
 DOCKER_CONFIG_BACKUP=""
 IPV6_ENABLED=false
+RULES_APPLIED=false
 
 # ---- LOG ROTASYONU ----
 rotate_log_if_needed() {
@@ -55,7 +58,7 @@ log_message() {
     fi
 }
 
-# ---- ATOMİK TEMİZLİK ----
+# ---- ATOMİK TEMİZLİK (LOCK FILE ASLA SİLİNMEZ) ----
 cleanup() {
     local exit_code=$?
     trap '' EXIT INT TERM ERR HUP
@@ -71,21 +74,24 @@ cleanup() {
             log_message "WARN" "Docker config rolled back"
         fi
         
-        # Firewalld kurallarını temizle (eklediğimiz kuralları kaldır)
-        if command -v firewall-cmd &>/dev/null; then
-            firewall-cmd --direct --remove-rule ipv4 filter DOCKER-USER 0 -m state --state RELATED,ESTABLISHED -j ACCEPT 2>/dev/null || true
-            firewall-cmd --direct --remove-rule ipv4 filter DOCKER-USER 1 -i lo -j ACCEPT 2>/dev/null || true
-            firewall-cmd --direct --remove-rule ipv4 filter DOCKER-USER 2 -s 172.16.0.0/12 -d 172.16.0.0/12 -j ACCEPT 2>/dev/null || true
-            firewall-cmd --direct --remove-rule ipv4 filter DOCKER-USER 3 -s 192.168.0.0/16 -d 192.168.0.0/16 -j ACCEPT 2>/dev/null || true
-            firewall-cmd --direct --remove-rule ipv4 filter DOCKER-USER 4 -s 10.0.0.0/8 -d 10.0.0.0/8 -j ACCEPT 2>/dev/null || true
-            firewall-cmd --direct --remove-rule ipv4 filter DOCKER-USER 5 -j REJECT --reject-with icmp-host-prohibited 2>/dev/null || true
+        if [[ "${RULES_APPLIED}" == "true" ]]; then
+            # Eklenen kuralları temizle
+            firewall-cmd --direct --remove-passthrough ipv4 -A DOCKER-USER -m state --state RELATED,ESTABLISHED -j ACCEPT 2>/dev/null || true
+            firewall-cmd --direct --remove-passthrough ipv4 -A DOCKER-USER -i lo -j ACCEPT 2>/dev/null || true
+            firewall-cmd --direct --remove-passthrough ipv4 -A DOCKER-USER -s 172.16.0.0/12 -d 172.16.0.0/12 -j ACCEPT 2>/dev/null || true
+            firewall-cmd --direct --remove-passthrough ipv4 -A DOCKER-USER -s 192.168.0.0/16 -d 192.168.0.0/16 -j ACCEPT 2>/dev/null || true
+            firewall-cmd --direct --remove-passthrough ipv4 -A DOCKER-USER -s 10.0.0.0/8 -d 10.0.0.0/8 -j ACCEPT 2>/dev/null || true
+            firewall-cmd --direct --remove-passthrough ipv4 -A DOCKER-USER -j REJECT --reject-with icmp-host-prohibited 2>/dev/null || true
+            
             if [[ "${IPV6_ENABLED}" == "true" ]]; then
-                firewall-cmd --direct --remove-rule ipv6 filter DOCKER-USER 0 -m state --state RELATED,ESTABLISHED -j ACCEPT 2>/dev/null || true
-                firewall-cmd --direct --remove-rule ipv6 filter DOCKER-USER 1 -i lo -j ACCEPT 2>/dev/null || true
-                firewall-cmd --direct --remove-rule ipv6 filter DOCKER-USER 2 -s fc00::/7 -d fc00::/7 -j ACCEPT 2>/dev/null || true
-                firewall-cmd --direct --remove-rule ipv6 filter DOCKER-USER 3 -j REJECT --reject-with icmp6-adm-prohibited 2>/dev/null || true
+                firewall-cmd --direct --remove-passthrough ipv6 -A DOCKER-USER -m state --state RELATED,ESTABLISHED -j ACCEPT 2>/dev/null || true
+                firewall-cmd --direct --remove-passthrough ipv6 -A DOCKER-USER -i lo -j ACCEPT 2>/dev/null || true
+                firewall-cmd --direct --remove-passthrough ipv6 -A DOCKER-USER -s fc00::/7 -d fc00::/7 -j ACCEPT 2>/dev/null || true
+                firewall-cmd --direct --remove-passthrough ipv6 -A DOCKER-USER -j REJECT --reject-with icmp6-adm-prohibited 2>/dev/null || true
             fi
-            firewall-cmd --runtime-to-permanent 2>/dev/null || true
+            
+            firewall-cmd --reload >/dev/null 2>&1 || true
+            log_message "WARN" "Firewall rules rolled back"
         fi
     fi
     
@@ -112,7 +118,7 @@ check_prerequisites() {
     fi
     
     local missing=()
-    for cmd in systemctl docker iptables firewall-cmd iptables-save; do
+    for cmd in systemctl docker firewall-cmd iptables ip6tables; do
         command -v "${cmd}" &>/dev/null || missing+=("${cmd}")
     done
     if [[ ${#missing[@]} -gt 0 ]]; then
@@ -120,12 +126,16 @@ check_prerequisites() {
         exit 1
     fi
     
+    if systemctl is-active --quiet docker; then
+        log_message "INFO" "Docker is running"
+    else
+        printf '%b' "${YELLOW}[!] Docker is not running. Starting...${NC}\n"
+        systemctl start docker
+        sleep 2
+    fi
+    
     if [[ -f /proc/sys/net/ipv6/conf/all/disable_ipv6 ]] && [[ $(cat /proc/sys/net/ipv6/conf/all/disable_ipv6) -eq 0 ]]; then
         IPV6_ENABLED=true
-        if ! command -v ip6tables &>/dev/null; then
-            printf '%b' "${YELLOW}[!] IPv6 enabled but ip6tables missing. Disabling IPv6 rules.${NC}\n"
-            IPV6_ENABLED=false
-        fi
     fi
 }
 
@@ -142,21 +152,25 @@ acquire_lock() {
     log_message "INFO" "Lock acquired (PID: $$)"
 }
 
-# ---- DOCKER-USER ZİNCİR GARANTİSİ ----
-ensure_docker_user_chain_exists() {
+# ---- DOCKER-USER ZİNCİRİNİ OLUŞTUR (MANUEL) ----
+create_docker_user_chain() {
+    # Docker çalışıyor olmalı, yoksa zincir oluşmaz
     if ! iptables -L DOCKER-USER -n &>/dev/null; then
         iptables -N DOCKER-USER 2>/dev/null || true
-    fi
-    if ! iptables -C FORWARD -j DOCKER-USER 2>/dev/null; then
-        iptables -I FORWARD -j DOCKER-USER 2>/dev/null || true
+        # FORWARD'dan DOCKER-USER'a yönlendirme yoksa ekle
+        if ! iptables -C FORWARD -j DOCKER-USER 2>/dev/null; then
+            iptables -I FORWARD -j DOCKER-USER 2>/dev/null || true
+        fi
+        log_message "INFO" "Created DOCKER-USER chain (IPv4)"
     fi
     
     if [[ "${IPV6_ENABLED}" == "true" ]]; then
         if ! ip6tables -L DOCKER-USER -n &>/dev/null; then
             ip6tables -N DOCKER-USER 2>/dev/null || true
-        fi
-        if ! ip6tables -C FORWARD -j DOCKER-USER 2>/dev/null; then
-            ip6tables -I FORWARD -j DOCKER-USER 2>/dev/null || true
+            if ! ip6tables -C FORWARD -j DOCKER-USER 2>/dev/null; then
+                ip6tables -I FORWARD -j DOCKER-USER 2>/dev/null || true
+            fi
+            log_message "INFO" "Created DOCKER-USER chain (IPv6)"
         fi
     fi
 }
@@ -167,13 +181,13 @@ is_docker_config_already_correct() {
     
     local current_ip current_ip6 current_userland
     current_ip=$(grep -o '"ip"[[:space:]]*:[[:space:]]*"[^"]*"' "${DOCKER_CONFIG}" 2>/dev/null | head -1 | cut -d'"' -f4 || echo "")
-    current_ip6=$(grep -o '"ip6"[[:space:]]*:[[:space:]]*"[^"]*"' "${DOCKER_CONFIG}" 2>/dev/null | head -1 | cut -d'"' -f4 || echo "")
     current_userland=$(grep -o '"userland-proxy"[[:space:]]*:[[:space:]]*[^,}]*' "${DOCKER_CONFIG}" 2>/dev/null | grep -o 'true\|false' | head -1 || echo "")
     
     [[ "${current_ip}" == "127.0.0.1" ]] || return 1
     [[ "${current_userland}" == "false" ]] || return 1
     
     if [[ "${IPV6_ENABLED}" == "true" ]]; then
+        current_ip6=$(grep -o '"ip6"[[:space:]]*:[[:space:]]*"[^"]*"' "${DOCKER_CONFIG}" 2>/dev/null | head -1 | cut -d'"' -f4 || echo "")
         [[ "${current_ip6}" == "::1" ]] || return 1
     fi
     return 0
@@ -187,48 +201,14 @@ is_firewall_already_hardened() {
     return 0
 }
 
-# ---- FIREWALL KURALLARINI DOĞRUDAN EKLE (Kalıcı) ----
-apply_firewall_rules() {
-    echo "Applying IPv4 rules..."
-    # Önce varsa eski kuralları temizle (idempotency için)
-    firewall-cmd --direct --remove-rule ipv4 filter DOCKER-USER 0 -m state --state RELATED,ESTABLISHED -j ACCEPT 2>/dev/null || true
-    firewall-cmd --direct --remove-rule ipv4 filter DOCKER-USER 1 -i lo -j ACCEPT 2>/dev/null || true
-    firewall-cmd --direct --remove-rule ipv4 filter DOCKER-USER 2 -s 172.16.0.0/12 -d 172.16.0.0/12 -j ACCEPT 2>/dev/null || true
-    firewall-cmd --direct --remove-rule ipv4 filter DOCKER-USER 3 -s 192.168.0.0/16 -d 192.168.0.0/16 -j ACCEPT 2>/dev/null || true
-    firewall-cmd --direct --remove-rule ipv4 filter DOCKER-USER 4 -s 10.0.0.0/8 -d 10.0.0.0/8 -j ACCEPT 2>/dev/null || true
-    firewall-cmd --direct --remove-rule ipv4 filter DOCKER-USER 5 -j REJECT --reject-with icmp-host-prohibited 2>/dev/null || true
-    
-    # Sırayla ekle (priority 0-5)
-    firewall-cmd --direct --add-rule ipv4 filter DOCKER-USER 0 -m state --state RELATED,ESTABLISHED -j ACCEPT
-    firewall-cmd --direct --add-rule ipv4 filter DOCKER-USER 1 -i lo -j ACCEPT
-    firewall-cmd --direct --add-rule ipv4 filter DOCKER-USER 2 -s 172.16.0.0/12 -d 172.16.0.0/12 -j ACCEPT
-    firewall-cmd --direct --add-rule ipv4 filter DOCKER-USER 3 -s 192.168.0.0/16 -d 192.168.0.0/16 -j ACCEPT
-    firewall-cmd --direct --add-rule ipv4 filter DOCKER-USER 4 -s 10.0.0.0/8 -d 10.0.0.0/8 -j ACCEPT
-    firewall-cmd --direct --add-rule ipv4 filter DOCKER-USER 5 -j REJECT --reject-with icmp-host-prohibited
-    
-    if [[ "${IPV6_ENABLED}" == "true" ]]; then
-        echo "Applying IPv6 rules..."
-        firewall-cmd --direct --remove-rule ipv6 filter DOCKER-USER 0 -m state --state RELATED,ESTABLISHED -j ACCEPT 2>/dev/null || true
-        firewall-cmd --direct --remove-rule ipv6 filter DOCKER-USER 1 -i lo -j ACCEPT 2>/dev/null || true
-        firewall-cmd --direct --remove-rule ipv6 filter DOCKER-USER 2 -s fc00::/7 -d fc00::/7 -j ACCEPT 2>/dev/null || true
-        firewall-cmd --direct --remove-rule ipv6 filter DOCKER-USER 3 -j REJECT --reject-with icmp6-adm-prohibited 2>/dev/null || true
-        
-        firewall-cmd --direct --add-rule ipv6 filter DOCKER-USER 0 -m state --state RELATED,ESTABLISHED -j ACCEPT
-        firewall-cmd --direct --add-rule ipv6 filter DOCKER-USER 1 -i lo -j ACCEPT
-        firewall-cmd --direct --add-rule ipv6 filter DOCKER-USER 2 -s fc00::/7 -d fc00::/7 -j ACCEPT
-        firewall-cmd --direct --add-rule ipv6 filter DOCKER-USER 3 -j REJECT --reject-with icmp6-adm-prohibited
-    fi
-    
-    # Kuralları kalıcı yap
-    firewall-cmd --runtime-to-permanent
-}
-
 # ---- DOCKER CONFIG ----
 configure_docker_localhost() {
     if is_docker_config_already_correct; then
         printf '%b' "${GREEN}✅ Docker config already correct. Skipping.${NC}\n"
         return 0
     fi
+    
+    printf '%b' "${BLUE}[*] Phase 1: Updating Docker daemon.json for localhost binding...${NC}\n"
     
     local temp_config
     temp_config=$(mktemp -p "${LOCK_DIR}" docker.XXXXXX.tmp) || exit 1
@@ -242,12 +222,12 @@ configure_docker_localhost() {
         fi
         
         if [[ ${is_valid} -eq 0 ]]; then
-            printf '%b' "${YELLOW}[!] Existing daemon.json malformed. Moving to quarantine.${NC}\n"
+            printf '%b' "${YELLOW}[!] Existing daemon.json is malformed. Moving to quarantine.${NC}\n"
             mv "${DOCKER_CONFIG}" "${DOCKER_CONFIG}.corrupt_$(date +%Y%m%d_%H%M%S)"
         else
             DOCKER_CONFIG_BACKUP="${DOCKER_CONFIG}.aegis_bak_$(date +%Y%m%d_%H%M%S)"
             cp -a "${DOCKER_CONFIG}" "${DOCKER_CONFIG_BACKUP}"
-            log_message "INFO" "Docker backup: ${DOCKER_CONFIG_BACKUP}"
+            log_message "INFO" "Docker backup created"
         fi
     fi
     
@@ -279,55 +259,132 @@ EOF
 }
 EOF
     fi
+    
     mv "${temp_config}" "${DOCKER_CONFIG}"
     chmod 0644 "${DOCKER_CONFIG}"
-    log_message "INFO" "Docker config updated."
+    
+    systemctl restart docker
+    local max_wait=10
+    for ((i=0; i<max_wait; i++)); do
+        if systemctl is-active --quiet docker; then
+            log_message "INFO" "Docker restarted successfully"
+            return 0
+        fi
+        sleep 1
+    done
+    
+    printf '%b' "${RED}[-] Docker failed to start! Rolling back.${NC}\n" >&2
+    exit 1
+}
+
+# ---- FIREWALL KURALLARINI UYGULA (Direct Passthrough) ----
+apply_firewall_rules() {
+    printf '%b' "${BLUE}[*] Phase 2: Applying direct firewalld rules...${NC}\n"
+    
+    # Önce DOCKER-USER zincirinin var olduğundan emin ol
+    create_docker_user_chain
+    
+    # IPv4 kurallarını teker teker ekle
+    local ipv4_rules=(
+        "-A DOCKER-USER -m state --state RELATED,ESTABLISHED -j ACCEPT"
+        "-A DOCKER-USER -i lo -j ACCEPT"
+        "-A DOCKER-USER -s 172.16.0.0/12 -d 172.16.0.0/12 -j ACCEPT"
+        "-A DOCKER-USER -s 192.168.0.0/16 -d 192.168.0.0/16 -j ACCEPT"
+        "-A DOCKER-USER -s 10.0.0.0/8 -d 10.0.0.0/8 -j ACCEPT"
+        "-A DOCKER-USER -j REJECT --reject-with icmp-host-prohibited"
+    )
+    
+    for rule in "${ipv4_rules[@]}"; do
+        if ! firewall-cmd --direct --add-passthrough ipv4 "${rule}" 2>/dev/null; then
+            printf '%b' "${RED}[-] Failed to add IPv4 rule: ${rule}${NC}\n" >&2
+            exit 1
+        fi
+        printf '%b' "${GREEN}  + Added IPv4: ${rule}${NC}\n"
+    done
+    
+    # IPv6 kuralları (sadece aktifse)
+    if [[ "${IPV6_ENABLED}" == "true" ]]; then
+        local ipv6_rules=(
+            "-A DOCKER-USER -m state --state RELATED,ESTABLISHED -j ACCEPT"
+            "-A DOCKER-USER -i lo -j ACCEPT"
+            "-A DOCKER-USER -s fc00::/7 -d fc00::/7 -j ACCEPT"
+            "-A DOCKER-USER -j REJECT --reject-with icmp6-adm-prohibited"
+        )
+        for rule in "${ipv6_rules[@]}"; do
+            if ! firewall-cmd --direct --add-passthrough ipv6 "${rule}" 2>/dev/null; then
+                printf '%b' "${YELLOW}[!] Failed to add IPv6 rule (IPv6 may be disabled): ${rule}${NC}\n"
+            else
+                printf '%b' "${GREEN}  + Added IPv6: ${rule}${NC}\n"
+            fi
+        done
+    fi
+    
+    RULES_APPLIED=true
+    log_message "INFO" "Firewall rules applied via direct passthrough"
+}
+
+# ---- KERNEL DOĞRULAMA ----
+verify_kernel_rules() {
+    printf '%b' "${BLUE}[*] Phase 4: Forensic verification on live kernel tree...${NC}\n"
+    
+    local verified=false
+    local max_retries=10
+    
+    for ((i=1; i<=max_retries; i++)); do
+        if iptables -C DOCKER-USER -j REJECT --reject-with icmp-host-prohibited 2>/dev/null; then
+            verified=true
+            break
+        fi
+        sleep 1
+    done
+    
+    # Teşhis için mevcut durumu göster
+    echo "DOCKER-USER chain contents:"
+    iptables -L DOCKER-USER -n 2>/dev/null || echo "Chain not found"
+    
+    if [[ "${verified}" == "false" ]]; then
+        printf '%b' "${RED}[-] ARCHITECTURE FAILURE: REJECT rule not found in DOCKER-USER chain!${NC}\n" >&2
+        exit 1
+    fi
+    
+    printf '%b' "${GREEN}✅ Kernel verification passed.${NC}\n"
 }
 
 # ---- ANA AKIŞ ----
 main() {
     clear
     printf '%b' "${BLUE}${BOLD}========================================================================${NC}\n"
-    printf '%b' "${CYAN}${BOLD}    🛡️  AEGIS DOCKER HARDENING v6.6.0 (Direct Firewalld Rules)${NC}\n"
+    printf '%b' "${CYAN}${BOLD}    🛡️  AEGIS DOCKER HARDENING v7.0.0 (Direct Passthrough)${NC}\n"
     printf '%b' "${BLUE}${BOLD}========================================================================${NC}\n"
     
-    ensure_docker_user_chain_exists
+    # Önce DOCKER-USER zincirini garanti altına al
+    create_docker_user_chain
     
-    printf '%b' "${BLUE}[*] Phase 1: Updating Docker daemon.json for localhost binding...${NC}\n"
+    # Docker config
     configure_docker_localhost
     
+    # Firewall kuralları (sadece eksikse)
     if ! is_firewall_already_hardened; then
-        printf '%b' "${BLUE}[*] Phase 2: Applying direct firewalld rules...${NC}\n"
         apply_firewall_rules
+        firewall-cmd --reload >/dev/null 2>&1
+        sleep 1
     else
         printf '%b' "${GREEN}✅ Firewall rules already active. Skipping.${NC}\n"
     fi
     
-    printf '%b' "${BLUE}[*] Phase 3: Reloading firewalld and restarting Docker...${NC}\n"
-    firewall-cmd --reload >/dev/null 2>&1
-    systemctl restart docker
-    
-    printf '%b' "${BLUE}[*] Phase 4: Forensic verification on live kernel tree...${NC}\n"
-    sleep 2  # Kuralların oturması için kısa bekleme
-    
-    if iptables -C DOCKER-USER -j REJECT --reject-with icmp-host-prohibited 2>/dev/null; then
-        printf '%b' "${GREEN}✅ REJECT rule verified in DOCKER-USER chain.${NC}\n"
-    else
-        printf '%b' "${RED}[-] ARCHITECTURE FAILURE: REJECT rule not found!${NC}\n" >&2
-        echo "Current DOCKER-USER chain:"
-        iptables -L DOCKER-USER -n 2>/dev/null || true
-        exit 1
-    fi
+    # Doğrulama
+    verify_kernel_rules
     
     printf '%b' "${BLUE}------------------------------------------------------------------------${NC}\n"
-    printf '%b' "${GREEN}✅ SUCCESS: Hardening applied and kernel-verified.${NC}\n"
+    printf '%b' "${GREEN}✅ SUCCESS: Docker hardened successfully.${NC}\n"
     printf '%b' "   - Published ports: localhost only\n"
-    printf '%b' "   - Container internet egress: allowed\n"
     printf '%b' "   - External access to containers: BLOCKED\n"
+    printf '%b' "   - Container-to-container (private net): ALLOWED\n"
     printf '%b' "${BLUE}========================================================================${NC}\n"
-    log_message "SUCCESS" "Hardening completed (v6.6.0)"
+    log_message "SUCCESS" "Hardening completed v7.0.0"
 }
 
+# ---- YÜRÜTME ----
 check_prerequisites
 acquire_lock
 main
