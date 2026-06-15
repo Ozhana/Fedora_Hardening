@@ -3,8 +3,8 @@
 # BETİK ADI      : aegis-docker-hardening.sh
 # AMAÇ           : Docker'ı Localhost'a Bağlar, DNAT & Firewalld Bypass'ı Kapatır
 # YAZAN          : Dr. Ozhan Akdag & Senior Cyber Security Agent
-# SÜRÜM          : 6.1.0 (Asenkron Çekirdek Bariyeri Yamalı - Stable Baseline)
-# KRİTER         : No sync, No lockfile deletion, Full idempotency, Async-Proof
+# SÜRÜM          : 6.2.0 (Yarış Koşulu İmhacısı - Race-Free Latch)
+# KRİTER         : Pure Bash, Jq-Fallback, Inverse Settle, Verified Netfilter Tree
 # ==============================================================================
 set -Eeuo pipefail
 IFS=$'\n\t'
@@ -132,21 +132,6 @@ acquire_lock() {
     log_message "INFO" "Lock acquired (PID: $$)"
 }
 
-# ---- DOCKER-USER ZİNCİR GARANTİSİ ----
-ensure_docker_user_chain_exists() {
-    if ! iptables -L DOCKER-USER -n &>/dev/null; then
-        iptables -N DOCKER-USER 2>/dev/null || true
-        iptables -I FORWARD -j DOCKER-USER 2>/dev/null || true
-        log_message "INFO" "Created DOCKER-USER (IPv4)"
-    fi
-    
-    if [[ "${TRIGGER_IPV6:-$IPV6_ENABLED}" == "true" ]] && ! ip6tables -L DOCKER-USER -n &>/dev/null; then
-        ip6tables -N DOCKER-USER 2>/dev/null || true
-        ip6tables -I FORWARD -j DOCKER-USER 2>/dev/null || true
-        log_message "INFO" "Created DOCKER-USER (IPv6)"
-    fi
-}
-
 # ---- IDEMPOTENCY KONTROLLERİ ----
 is_docker_config_already_correct() {
     [[ ! -f "${DOCKER_CONFIG}" ]] && return 1
@@ -200,36 +185,33 @@ is_firewall_already_hardened() {
     return 0
 }
 
-# ---- FAZ 1: DOCKER LOCALHOST ----
-configure_docker_localhost() {
-    if is_docker_config_already_correct; then
-        printf '%b' "${GREEN}✅ Docker config already correct. Skipping restart.${NC}\n"
-        return 0
-    fi
-    
-    local temp_config
-    temp_config=$(mktemp -p "${LOCK_DIR}" docker.XXXXXX.tmp) || exit 1
-    
-    if [[ -f "${DOCKER_CONFIG}" ]]; then
-        local is_valid=1
-        if command -v jq &>/dev/null; then
-            jq empty "${DOCKER_CONFIG}" 2>/dev/null || is_valid=0
-        elif command -v python3 &>/dev/null; then
-            python3 -c 'import json, sys; json.load(open(sys.argv[1]))' "${DOCKER_CONFIG}" 2>/dev/null || is_valid=0
+# ---- PROTOKOL İCRA PROTOKOLÜ (MÜHÜRLÜ SIRALAMA) ----
+apply_hardening_matrix() {
+    # ---- 1. ADIM: DOCKER CONFIG YAPILANDIRILMASI ----
+    if ! is_docker_config_already_correct; then
+        local temp_config
+        temp_config=$(mktemp -p "${LOCK_DIR}" docker.XXXXXX.tmp) || exit 1
+        
+        if [[ -f "${DOCKER_CONFIG}" ]]; then
+            local is_valid=1
+            if command -v jq &>/dev/null; then
+                jq empty "${DOCKER_CONFIG}" 2>/dev/null || is_valid=0
+            elif command -v python3 &>/dev/null; then
+                python3 -c 'import json, sys; json.load(open(sys.argv[1]))' "${DOCKER_CONFIG}" 2>/dev/null || is_valid=0
+            fi
+            
+            if [[ ${is_valid} -eq 0 ]]; then
+                printf '%b' "${YELLOW}[!] Existing daemon.json is malformed. Moving to quarantine.${NC}\n"
+                mv "${DOCKER_CONFIG}" "${DOCKER_CONFIG}.corrupt_$(date +%Y%m%d_%H%M%S)"
+            else
+                DOCKER_CONFIG_BACKUP="${DOCKER_CONFIG}.aegis_bak_$(date +%Y%m%d_%H%M%S)"
+                cp -a "${DOCKER_CONFIG}" "${DOCKER_CONFIG_BACKUP}"
+                log_message "INFO" "Docker backup created: ${DOCKER_CONFIG_BACKUP}"
+            fi
         fi
         
-        if [[ ${is_valid} -eq 0 ]]; then
-            printf '%b' "${YELLOW}[!] Existing daemon.json is malformed. Moving to quarantine.${NC}\n"
-            mv "${DOCKER_CONFIG}" "${DOCKER_CONFIG}.corrupt_$(date +%Y%m%d_%H%M%S)"
-        else
-            DOCKER_CONFIG_BACKUP="${DOCKER_CONFIG}.aegis_bak_$(date +%Y%m%d_%H%M%S)"
-            cp -a "${DOCKER_CONFIG}" "${DOCKER_CONFIG_BACKUP}"
-            log_message "INFO" "Backup created: ${DOCKER_CONFIG_BACKUP}"
-        fi
-    fi
-    
-    if [[ "${IPV6_ENABLED}" == "true" ]]; then
-        cat << 'EOF' > "${temp_config}"
+        if [[ "${IPV6_ENABLED}" == "true" ]]; then
+            cat << 'EOF' > "${temp_config}"
 {
   "iptables": true,
   "ip": "127.0.0.1",
@@ -242,8 +224,8 @@ configure_docker_localhost() {
   }
 }
 EOF
-    else
-        cat << 'EOF' > "${temp_config}"
+        else
+            cat << 'EOF' > "${temp_config}"
 {
   "iptables": true,
   "ip": "127.0.0.1",
@@ -255,58 +237,28 @@ EOF
   }
 }
 EOF
-    fi
-    
-    mv "${temp_config}" "${DOCKER_CONFIG}"
-    chmod 0644 "${DOCKER_CONFIG}"
-    
-    systemctl restart docker
-    local max_wait=10
-    for ((i=0; i<max_wait; i++)); do
-        if systemctl is-active --quiet docker; then
-            log_message "INFO" "Docker restarted successfully"
-            return 0
         fi
-        sleep 1
-    done
-    
-    printf '%b' "${RED}[-] Docker failed to start with new config! Rolling back.${NC}\n" >&2
-    exit 1
-}
+        mv "${temp_config}" "${DOCKER_CONFIG}"
+        chmod 0644 "${DOCKER_CONFIG}"
+        log_message "INFO" "Docker json matrisi güncellendi."
+    else
+        printf '%b' "${GREEN}✅ Docker daemon.json configuration already correct.${NC}\n"
+    fi
 
-# ---- FAZ 2: AEGIS FIREWALL SHIELD ----
-install_aegis_shield() {
-    if is_firewall_already_hardened; then
-        printf '%b' "${GREEN}✅ Firewall rules already active. Skipping.${NC}\n"
-        return 0
-    fi
-    
-    # CRITICAL: Asenkron Çekirdek Bariyeri (Arka planda uyanan dockerd'nin zincirleri kernel'a basmasını bekle)
-    printf '%b' "${BLUE}[*] Waiting for asynchronus Docker Netfilter hooks to settle in the kernel...${NC}\n"
-    local settled=false
-    for ((i=0; i<10; i++)); do
-        if iptables -L DOCKER-USER -n &>/dev/null; then
-            settled=true
-            break
+    # ---- 2. ADIM: DOCKER ÇALIŞMIYORKEN FİREWALLD SURUNU ÖRMEK ----
+    if ! is_firewall_already_hardened; then
+        printf '%b' "${BLUE}[*] Phase 2: Deploying Aegis Shield matrix directly into permanent storage...${NC}\n"
+        
+        if [[ -f "${DIRECT_XML}" ]]; then
+            FIREWALL_BACKUP="${DIRECT_XML}.aegis_bak_$(date +%Y%m%d_%H%M%S)"
+            cp -a "${DIRECT_XML}" "${FIREWALL_BACKUP}"
+            log_message "INFO" "Firewall backup: ${FIREWALL_BACKUP}"
         fi
-        sleep 1
-    done
-    
-    if [[ "${settled}" == "false" ]]; then
-        printf '%b' "${YELLOW}[!] UYARI: DOCKER-USER zinciri çekirdekte bulunamadı. Manuel enjeksiyon deneniyor...${NC}\n"
-        ensure_docker_user_chain_exists
-    fi
-    
-    if [[ -f "${DIRECT_XML}" ]]; then
-        FIREWALL_BACKUP="${DIRECT_XML}.aegis_bak_$(date +%Y%m%d_%H%M%S)"
-        cp -a "${DIRECT_XML}" "${FIREWALL_BACKUP}"
-        log_message "INFO" "Firewall backup: ${FIREWALL_BACKUP}"
-    fi
-    
-    local tmp_xml
-    tmp_xml=$(mktemp -p "${LOCK_DIR}" direct.XXXXXX.tmp) || exit 1
-    
-    cat << 'EOF' > "${tmp_xml}"
+        
+        local tmp_xml
+        tmp_xml=$(mktemp -p "${LOCK_DIR}" direct.XXXXXX.tmp) || exit 1
+        
+        cat << 'EOF' > "${tmp_xml}"
 <?xml version="1.0" encoding="utf-8"?>
 <direct>
   <passthrough ipv="ipv4">-A DOCKER-USER -m state --state RELATED,ESTABLISHED -j ACCEPT</passthrough>
@@ -322,42 +274,60 @@ install_aegis_shield() {
   <passthrough ipv="ipv6">-A DOCKER-USER -j REJECT --reject-with icmp6-adm-prohibited</passthrough>
 </direct>
 EOF
+        chmod 0600 "${tmp_xml}"
+        mv "${tmp_xml}" "${DIRECT_XML}"
+        
+        # Firewalld surunu temiz hafızayla yeniden yükle
+        firewall-cmd --reload >/dev/null 2>&1
+        log_message "INFO" "Firewalld direct.xml permanent katmana kazındı."
+    else
+        printf '%b' "${GREEN}✅ Firewalld direct.xml configuration already contains Aegis matrix.${NC}\n"
+    fi
+
+    # ---- 3. ADIM: MOTORU ÇALIŞTIRMAK (ZORLU RE-INJECTION) ----
+    printf '%b' "${BLUE}[*] Phase 3: Triggering Docker engine reload to enforce Netfilter synchronization...${NC}\n"
+    systemctl restart docker
     
-    chmod 0600 "${tmp_xml}"
-    mv "${tmp_xml}" "${DIRECT_XML}"
+    # ---- 4. ADIM: ADLİ KERNEL POLLING DOĞRULAMASI (Kritik Eşik) ----
+    printf '%b' "${BLUE}[*] Phase 4: Commencing forensic verification loop on live runtime tree...${NC}\n"
+    local verified=false
+    local max_retries=12
     
-    if ! firewall-cmd --reload >/dev/null 2>&1; then
-        printf '%b' "${RED}[-] firewalld rejected new rules!${NC}\n" >&2
+    for ((i=1; i<=max_retries; i++)); do
+        # Docker uyanıp Firewalld'nin kurallarını tetikledi mi?
+        if iptables -C DOCKER-USER -j REJECT --reject-with icmp-host-prohibited 2>/dev/null; then
+            verified=true
+            break
+        fi
+        sleep 1
+    done
+
+    if [[ "${verified}" == "false" ]]; then
+        printf '%b' "${RED}[-] ARCHITECTURE FAILURE: Kernel validation timed out. Rules missing from active Netfilter tree!${NC}\n" >&2
         exit 1
     fi
-    
-    # Nihai Adli Çekirdek Doğrulaması
-    if ! iptables -C DOCKER-USER -j REJECT --reject-with icmp-host-prohibited 2>/dev/null; then
-        printf '%b' "${RED}[-] Kernel verification failed! Rules present in direct.xml but missing from runtime netfilter tree.${NC}\n" >&2
-        exit 1
-    fi
-    log_message "INFO" "Aegis firewall shield installed"
 }
 
 # ---- ANA AKIŞ ----
 main() {
     clear
     printf '%b' "${BLUE}${BOLD}========================================================================${NC}\n"
-    printf '%b' "${CYAN}${BOLD}    🛡️  INCORPORATED AEGIS DOCKER HARDENING v6.1.0 (Async-Proof Barrier)${NC}\n"
+    printf '%b' "${CYAN}${BOLD}    🛡️  INCORPORATED AEGIS DOCKER HARDENING v6.2.0 (Race-Free Baseline)${NC}\n"
     printf '%b' "${BLUE}${BOLD}========================================================================${NC}\n"
     
-    printf '%b' "${BLUE}[*] Phase 1: Securing Docker to localhost...${NC}\n"
-    configure_docker_localhost
-    
-    ensure_docker_user_chain_exists
-    
-    printf '%b' "${BLUE}[*] Phase 2: Installing Aegis Netfilter shield...${NC}\n"
-    install_aegis_shield
-    
+    if is_docker_config_already_correct && is_firewall_already_hardened; then
+        printf '%b' "${GREEN}✅ [IDEMPOTENT] Full ecosystem hardened and active in live kernel. Stand down.${NC}\n"
+        log_message "INFO" "Ecosystem state is stable."
+        exit 0
+    fi
+
+    apply_hardening_matrix
+
     printf '%b' "${BLUE}------------------------------------------------------------------------${NC}\n"
-    printf '%b' "${GREEN}✅ SUCCESS: Hardening Applied and Verified Against Asynchronous Kernel Delays.${NC}\n"
+    printf '%b' "${GREEN}✅ SUCCESS: Hardening Applied and Verified via Inverse Muzzle Matrix.${NC}\n"
+    printf '%b' "   Published ports linked to 127.0.0.1 and Netfilter trees fully sealed.\n"
     printf '%b' "${BLUE}========================================================================${NC}\n"
-    log_message "SUCCESS" "Full hardening completed (v6.1.0)"
+    log_message "SUCCESS" "Full hardening completed (v6.2.0)"
 }
 
 check_prerequisites
