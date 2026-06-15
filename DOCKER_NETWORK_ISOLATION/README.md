@@ -44,7 +44,7 @@ mkdir -p ~/aegis-docker-installer && cd ~/aegis-docker-installer && cat << 'EOF'
 
 | ENGLISH | TÜRKÇE |
 |---------|--------|
-| <code>ss -tulpn \| grep docker-proxy</code><br><br>Should show only <code>127.0.0.1:xxxx</code> listeners.<br><br><code>iptables -v -L DOCKER-USER -n</code><br><br>Must contain the REJECT rule at the end.<br><br><code>ip6tables -v -L DOCKER-USER -n</code><br><br>(only if IPv6 is enabled) must show <code>icmp6-adm-prohibited</code>. | <code>ss -tulpn | grep docker-proxy</code><br><br>Sadece <code>127.0.0.1:xxxx</code> dinleyicilerini göstermeli.<br><br><code>iptables -v -L DOCKER-USER -n</code><br><br>Sonda REJECT kuralını içermeli.<br><br><code>ip6tables -v -L DOCKER-USER -n</code><br><br>(sadece IPv6 aktifse) <code>icmp6-adm-prohibited</code> göstermeli. |
+| <code>ss -tulpn \| grep docker-proxy</code><br><br>Should show only <code>127.0.0.1:xxxx</code> listeners.<br><br><code>iptables -v -L DOCKER-USER -n</code><br><br>Must contain the REJECT rule at the end.<br><br><code>ip6tables -v -L DOCKER-USER -n</code><br><br>(only if IPv6 is enabled) must show <code>icmp6-adm-prohibited</code>. | <code>ss -tulpn \| grep docker-proxy</code><br><br>Sadece <code>127.0.0.1:xxxx</code> dinleyicilerini göstermeli.<br><br><code>iptables -v -L DOCKER-USER -n</code><br><br>Sonda REJECT kuralını içermeli.<br><br><code>ip6tables -v -L DOCKER-USER -n</code><br><br>(sadece IPv6 aktifse) <code>icmp6-adm-prohibited</code> göstermeli. |
 
 ---
 
