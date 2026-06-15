@@ -1,27 +1,81 @@
-mkdir -p ~/aegis-docker-installer && cd ~/aegis-docker-installer && cat << 'EOF' > README.md
-# Aegis Docker Network Isolation
-## Enterprise-Grade Localhost & Forwarding Hardening (V6.0)
+cat << 'EOF' > README.md
+# 🛡️ Aegis Docker Network Isolation – Enterprise Hardening
 
 | ENGLISH | TÜRKÇE |
-| :--- | :--- |
-| **Project Identity & Authors**<br>• **Authors:** Dr. Ozhan Akdag & Senior Cyber Security Agent (Collaborative design)<br>• **Repository:** [Ozhana/Fedora_Hardening](https://github.com/Ozhana/Fedora_Hardening)<br>• **Target OS:** Fedora Workstation / Surface Pro 9 Hardened Baseline | **Proje Kimliği & Yazarlar**<br>• **Yazarlar:** Dr. Ozhan Akdag & Senior Cyber Security Agent (Collaborative design)<br>• **Depo:** [Ozhana/Fedora_Hardening](https://github.com/Ozhana/Fedora_Hardening)<br>• **Hedef İşletim Sistemi:** Fedora Workstation / Surface Pro 9 Sıkılaştırılmış Taban Çizgisi |
-| **The Core Problem (Why is this needed?)**<br>By default, when you publish a port in Docker (e.g., `-p 8080:80`), Docker bypasses Firewalld completely. It injects a Destination NAT (`DNAT`) rule into the kernel's `PREROUTING` chain. Since this happens *before* Firewalld hooks, your containers are exposed directly to the public internet, leaving your local firewall blind and helpless. | **Temel Sorun (Buna neden ihtiyaç var?)**<br>Varsayılan olarak, Docker'da bir port yayınladığınızda (örn. `-p 8080:80`), Docker Firewalld'yi tamamen baypas eder. Çekirdeğin `PREROUTING` zincirine sinsi bir Hedef NAT (`DNAT`) kuralı enjekte eder. Bu işlem Firewalld kancalarından *önce* gerçekleştiği için konteynerleriniz doğrudan internete açılır; yerel güvenlik duvarınız kör ve çaresiz kalır. |
-| **The Aegis Solution**<br>Aegis secures your host in two steps:<br>1. **Localhost Binding:** Forces Docker to bind all published container ports strictly to `127.0.0.1`. No external interface can see them.<br>2. **Forwarding Isolation:** Seals the `DOCKER-USER` table inside Firewalld to isolate multi-bridge (Compose/n8n) internal routing while rejecting public probes. | **Aegis Çözümü**<br>Aegis, sisteminizi iki adımda koruma altına alır:<br>1. **Localhost Kelepçelemesi:** Docker'ı, yayınlanan tüm konteyner portlarını kesin bir şekilde `127.0.0.1` adresine bağlamaya zorlar. Dış ağ kartları portları göremez.<br>2. **Yönlendirme İzolasyonu:** Harici taramaları reddederken çoklu köprü (Compose/n8n) iç yönlendirmesini izole etmek için Firewalld içindeki `DOCKER-USER` tablosunu mühürler. |
-| **Step 1: Prepare the Installation Path**<br>We must create an isolated workspace inside your home directory so the configuration files don't conflict with other local items.<br><br><code>mkdir -p ~/aegis-docker-installer && cd ~/aegis-docker-installer</code> | **Adım 1: Kurulum Yolunu Hazırlayın**<br>Konfigürasyon dosyalarının diğer yerel öğelerle çakışmaması için ev dizininizde izole bir çalışma alanı oluşturmalıyız.<br><br><code>mkdir -p ~/aegis-docker-installer && cd ~/aegis-docker-installer</code> |
-| **Step 2: Fetch the Hardening Script**<br>Pull the production-ready protocol script from the official hardened repository branch. This file contains the atomic validation loops.<br><br><code>curl -O https://raw.githubusercontent.com/Ozhana/Fedora_Hardening/main/DOCKER_NETWORK_ISOLATION/aegis-docker-fw.sh</code> | **Adım 2: Sıkılaştırma Betiğini Çekin**<br>Üretim ortamına hazır protokol betiğini resmi sıkılaştırılmış depo dalından çekin. Bu dosya atomik doğrulama döngülerini içerir.<br><br><code>curl -O https://raw.githubusercontent.com/Ozhana/Fedora_Hardening/main/DOCKER_NETWORK_ISOLATION/aegis-docker-fw.sh</code> |
-| **Step 3: Secure Permissions & System Path**<br>Move the downloaded script to a trusted system directory, hand ownership to root, and restrict read/write access to prevent tampering.<br><br><code>sudo cp aegis-docker-fw.sh /usr/local/bin/aegis-docker-hardening</code><br><code>sudo chown root:root /usr/local/bin/aegis-docker-hardening</code><br><code>sudo chmod 700 /usr/local/bin/aegis-docker-hardening</code> | **Adım 3: Yetkileri ve Sistem Yolunu Güvenceye Alın**<br>İndirilen betiği güvenilir bir sistem dizinine taşıyın, sahipliğini root'a devredin ve manipülasyonu önlemek için okuma/yazma erişimini kısıtlayın.<br><br><code>sudo cp aegis-docker-fw.sh /usr/local/bin/aegis-docker-hardening</code><br><code>sudo chown root:root /usr/local/bin/aegis-docker-hardening</code><br><code>sudo chmod 700 /usr/local/bin/aegis-docker-hardening</code> |
-| **Step 4: Execute the Security Matrix**<br>Trigger the enforcement engine. The script will dynamically inspect your IPv6 state, back up current configs safely, reconfigure Docker, and reload Firewalld.<br><br><code>sudo /usr/local/bin/aegis-docker-hardening</code> | **Adım 4: Güvenlik Matrisini Çalıştırın**<br>Zorunlu kılma motorunu tetikleyin. Betik IPv6 durumunuzu dinamik olarak denetleyecek, mevcut ayarları yedekleyecek, Docker'ı yeniden yapılandıracak ve Firewalld'yi yükleyecektir.<br><br><code>sudo /usr/local/bin/aegis-docker-hardening</code> |
-| **What to Expect (Verification Commands)**<br>Once executed successfully, verify the defensive barrier using these forensic commands:<br><br>1. Check if Docker only listens locally (Should show 127.0.0.1 or ::1 only):<br><code>sudo ss -tulpn \| grep dockerd</code><br><br>2. Check if the final REJECT rule is present in the kernel framework:<br><code>sudo iptables -v -L DOCKER-USER -n</code> | **Ne Beklemeli (Doğrulama Komutları)**<br>Başarıyla çalıştırıldıktan sonra, aşağıdaki adli komutları kullanarak savunma bariyerini mutlak surette doğrulayın:<br><br>1. Docker'ın yalnızca yerel olarak dinlediğini kontrol edin (Sadece 127.0.0.1 veya ::1 görünmelidir):<br><code>sudo ss -tulpn \| grep dockerd</code><br><br>2. Nihai REJECT kuralının çekirdek çerçevesinde mevcut olup olmadığını kontrol edin:<br><code>sudo iptables -v -L DOCKER-USER -n</code> |
-| **Disaster Recovery & Manual Rollback**<br>If you ever need to manually revert your system back to the factory state, execute these steps to restore the automated backups:<br><br><code>sudo cp -a /etc/docker/daemon.json.aegis_bak_* /etc/docker/daemon.json && sudo systemctl restart docker</code><br><code>sudo cp -a /etc/firewalld/direct.xml.aegis_bak_* /etc/firewalld/direct.xml && sudo firewall-cmd --reload</code> | **Felaket Kurtarma & Manuel Geri Alma**<br>Sisteminizi fabrika çıkış ayarlarına manuel olarak döndürmeniz gerekirse, otomatik oluşturulan yedekleri geri yüklemek için şu adımları işletin:<br><br><code>sudo cp -a /etc/docker/daemon.json.aegis_bak_* /etc/docker/daemon.json && sudo systemctl restart docker</code><br><code>sudo cp -a /etc/firewalld/direct.xml.aegis_bak_* /etc/firewalld/direct.xml && sudo firewall-cmd --reload</code> |
+|---------|--------|
+| **Version:** 6.0<br>**Problem:** Docker silently bypasses firewalld via DNAT and iptables manipulation, exposing containers to the external network.<br>**Solution:** Lock published ports to localhost and seal the DOCKER-USER chain with strict private‑subnet‑only rules. | **Versiyon:** 6.0<br>**Sorun:** Docker, DNAT ve iptables müdahalesi ile firewalld’ı sessizce baypas ederek konteynırları dış ağa açar.<br>**Çözüm:** Yayınlanan portları localhost’a kilitlemek ve DOCKER-USER zincirini özel alt ağ trafiğiyle sınırlandırarak mühürlemek. |
+| **Affected files:**<br><code>/etc/docker/daemon.json</code><br><code>/etc/firewalld/direct.xml</code> | **Etkilenen dosyalar:**<br><code>/etc/docker/daemon.json</code><br><code>/etc/firewalld/direct.xml</code> |
+| **Repository:**<br><code>https://github.com/Ozhana/Fedora_Hardening/tree/main/DOCKER_NETWORK_ISOLATION</code> | **Depo:**<br><code>https://github.com/Ozhana/Fedora_Hardening/tree/main/DOCKER_NETWORK_ISOLATION</code> |
 
 ---
 
-### ⚡ Technical Hardening Matrix / Teknik Sıkılaştırma Matrisi
+## 📥 1. Fetch the script / Betiği İndir
 
-| EN Component / Feature | TR Bileşen / Özellik | EN Forensic & Operational Effect | TR Adli & Operasyonel Etki |
-| :--- | :--- | :--- | :--- |
-| `ip: 127.0.0.1` | Localhost IP Kelepçelemesi | Forces all published container ports to map to loopback, entirely neutralizing external Netfilter/DNAT bypass vectors. | Tüm yayınlanan konteyner portlarını loopback arayüzüne eşlenmeye zorlar, harici Netfilter/DNAT baypas vektörlerini tamamen etkisiz hale getirir. |
-| `userland-proxy: false` | Userland Proxy Kapatılması | Eradicates resource-heavy background proxy processes, decreasing system latency and eliminating raw port exposing exposure. | Arka planda çalışan yüksek kaynak tüketimli proxy süreçlerini yok ederek sistem gecikmesini azaltır ve ham port ifşa riskini ortadan kaldırır. |
-| `log-opts: max-size` | Log Boyut Sınırlandırması | Enforces hardware-level quotas on container logging to fully block malicious "Log Flooding (DoS)" sub-attacks. | Konteyner günlüklemesine donanım seviyesinde kotalar koyarak sinsi "Log Şişirme (DoS)" alt saldırılarını tamamen engeller. |
-| `Anti-Symlink Trap` | Anti-Symlink Tuzağı | Preserves the kernel lockfile descriptor inside `/run` without unlinking to completely block Symlink Race Condition attacks (CVSS 7.8). | `/run` altındaki çekirdek kilit dosyası tanımlayıcısını silmeyerek Symlink Race Condition (CVSS 7.8) saldırılarını tamamen bloke eder. |
+| ENGLISH | TÜRKÇE |
+|---------|--------|
+| <code>curl -sSL https://raw.githubusercontent.com/Ozhana/Fedora_Hardening/main/DOCKER_NETWORK_ISOLATION/aegis-docker-fw.sh -o /tmp/aegis.sh</code> | <code>curl -sSL https://raw.githubusercontent.com/Ozhana/Fedora_Hardening/main/DOCKER_NETWORK_ISOLATION/aegis-docker-fw.sh -o /tmp/aegis.sh</code> |
+
+---
+
+## 🔐 2. Permissions / Yetkilendirme
+
+| ENGLISH | TÜRKÇE |
+|---------|--------|
+| <code>chmod +x /tmp/aegis.sh</code> | <code>chmod +x /tmp/aegis.sh</code> |
+
+---
+
+## 🚀 3. Execute / Çalıştır
+
+| ENGLISH | TÜRKÇE |
+|---------|--------|
+| <code>sudo /tmp/aegis.sh</code> | <code>sudo /tmp/aegis.sh</code> |
+| *The script is idempotent – running it again changes nothing.* | *Betik idempotenttir – tekrar çalıştırmak hiçbir şeyi değiştirmez.* |
+
+---
+
+## 🔍 4. What to Expect / Ne Beklemeli
+
+| ENGLISH | TÜRKÇE |
+|---------|--------|
+| After successful execution:<br><br>✅ Published ports (e.g. <code>-p 8080:80</code>) listen **only on 127.0.0.1**<br>✅ External access to containers is **impossible**<br>✅ Container‑to‑container traffic is allowed **only inside private subnets** (<code>172.16/12</code>, <code>192.168/16</code>, <code>10/8</code>, <code>fc00::/7</code>)<br>✅ Containers can still reach the internet (egress allowed)<br>✅ Docker can no longer manipulate firewalld rules | Başarılı çalıştırmadan sonra:<br><br>✅ Yayınlanan portlar (ör. <code>-p 8080:80</code>) **sadece 127.0.0.1** üzerinde dinler<br>✅ Konteynırlara dışarıdan erişim **imkansızdır**<br>✅ Konteynırlar arası trafiğe **yalnızca özel alt ağlar** içinde izin verilir (<code>172.16/12</code>, <code>192.168/16</code>, <code>10/8</code>, <code>fc00::/7</code>)<br>✅ Konteynırlar internete çıkabilir (egress izni vardır)<br>✅ Docker artık firewalld kurallarını manipüle edemez |
+
+### Verification commands / Doğrulama komutları
+
+| ENGLISH | TÜRKÇE |
+|---------|--------|
+| <code>ss -tulpn \| grep docker-proxy</code><br><br>Should show only <code>127.0.0.1:xxxx</code> listeners.<br><br><code>iptables -v -L DOCKER-USER -n</code><br><br>Must contain the REJECT rule at the end.<br><br><code>ip6tables -v -L DOCKER-USER -n</code><br><br>(only if IPv6 is enabled) must show <code>icmp6-adm-prohibited</code>. | <code>ss -tulpn \| grep docker-proxy</code><br><br>Sadece <code>127.0.0.1:xxxx</code> dinleyicilerini göstermeli.<br><br><code>iptables -v -L DOCKER-USER -n</code><br><br>Sonda REJECT kuralını içermeli.<br><br><code>ip6tables -v -L DOCKER-USER -n</code><br><br>(sadece IPv6 aktifse) <code>icmp6-adm-prohibited</code> göstermeli. |
+
+---
+
+## 🔄 5. Recovery & Rollback / Kurtarma ve Geri Alma
+
+| ENGLISH | TÜRKÇE |
+|---------|--------|
+| The script automatically creates timestamped backups before changes:<br><br><code>/etc/docker/daemon.json.aegis_bak_YYYYMMDD_HHMMSS</code><br><code>/etc/firewalld/direct.xml.aegis_bak_YYYYMMDD_HHMMSS</code><br><br>**Manual rollback:**<br><br><code>sudo cp /etc/docker/daemon.json.aegis_bak_\* /etc/docker/daemon.json</code><br><code>sudo systemctl restart docker</code><br><code>sudo cp /etc/firewalld/direct.xml.aegis_bak_\* /etc/firewalld/direct.xml</code><br><code>sudo firewall-cmd --reload</code> | Betik, değişiklik öncesinde zaman damgalı yedekler oluşturur:<br><br><code>/etc/docker/daemon.json.aegis_bak_YYYYMMDD_HHMMSS</code><br><code>/etc/firewalld/direct.xml.aegis_bak_YYYYMMDD_HHMMSS</code><br><br>**Manuel geri dönüş:**<br><br><code>sudo cp /etc/docker/daemon.json.aegis_bak_\* /etc/docker/daemon.json</code><br><code>sudo systemctl restart docker</code><br><code>sudo cp /etc/firewalld/direct.xml.aegis_bak_\* /etc/firewalld/direct.xml</code><br><code>sudo firewall-cmd --reload</code> |
+
+---
+
+## 📊 Technical Hardening Matrix / Teknik Sıkılaştırma Matrisi
+
+| Katman (Layer) | Hedef (Target) | Yöntem (Method) | Sonuç (Result) |
+|----------------|----------------|------------------|----------------|
+| **Docker daemon** | Port publishing (`-p`) | `daemon.json` → `"ip": "127.0.0.1"`, `"userland-proxy": false` | Portlar sadece localhost’a bağlanır, dış ağdan erişilemez |
+| **Netfilter (IPv4)** | Container‑to‑container & inbound forwarding | `DOCKER-USER` zincirine private subnet izinleri ve `REJECT` kuralı | Yalnızca özel alt ağlar içindeki trafiğe izin verilir; harici giriş tamamen engellenir |
+| **Netfilter (IPv6)** | Aynı, IPv6 için | `ip6tables` üzerinde aynı kurallar (ULA `fc00::/7` izni) | IPv6 kullanılıyorsa aynı koruma sağlanır |
+| **Idempotency** | Tekrarlı çalıştırma | `iptables-save` / `ip6tables-save` ile tam kural seti kontrolü | Betik ikinci kez çalıştığında hiçbir değişiklik yapmaz, log şişmez |
+| **Atomicity & Lock** | Yarış koşulları (race condition) | `flock` + ayrılmış dosya tanımlayıcı (FD 9) | İki betik aynı anda çalışamaz; kilit dosyası asla silinmez (symlink saldırısı önlenir) |
+
+---
+
+## 🤝 Author / Yazar
+
+**Dr. Ozhan Akdag & Senior Cyber Security Agent (Collaborative design)**  
+*Enterprise-grade hardening for Fedora Workstation – Surface Pro 9 & similar*
+
+---
+
+## 📜 License / Lisans
+
+MIT – free to use, share, and modify with credit.
 EOF
