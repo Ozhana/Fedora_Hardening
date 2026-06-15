@@ -1,4 +1,3 @@
-cat << 'EOF' > README.md
 # 🛡️ Aegis Docker Network Isolation – Enterprise Hardening
 
 | ENGLISH | TÜRKÇE |
@@ -78,4 +77,3 @@ cat << 'EOF' > README.md
 ## 📜 License / Lisans
 
 MIT – free to use, share, and modify with credit.
-EOF
