@@ -1,11 +1,10 @@
-mkdir -p ~/aegis-docker-installer && cd ~/aegis-docker-installer && cat << 'EOF' > README.md
 # 🛡️ Aegis Docker Network Isolation – Enterprise Hardening
 
 | ENGLISH | TÜRKÇE |
 |---------|--------|
 | **Version:** 6.0<br>**Problem:** Docker silently bypasses firewalld via DNAT and iptables manipulation, exposing containers to the external network.<br>**Solution:** Lock published ports to localhost and seal the DOCKER-USER chain with strict private‑subnet‑only rules. | **Versiyon:** 6.0<br>**Sorun:** Docker, DNAT ve iptables müdahalesi ile firewalld’ı sessizce baypas ederek konteynırları dış ağa açar.<br>**Çözüm:** Yayınlanan portları localhost’a kilitlemek ve DOCKER-USER zincirini özel alt ağ trafiğiyle sınırlandırarak mühürlemek. |
 | **Affected files:**<br><code>/etc/docker/daemon.json</code><br><code>/etc/firewalld/direct.xml</code> | **Etkilenen dosyalar:**<br><code>/etc/docker/daemon.json</code><br><code>/etc/firewalld/direct.xml</code> |
-| **Repository:**<br><code>https://github.com/Ozhana/Fedora_Hardening/tree/main/DOCKER_NETWORK_ISOLATION</code> | **Depo:**<br><code>https://github.com/Ozhana/Fedora_Hardening/tree/main/DOCKER_NETWORK_ISOLATION</code> |
+| **Repository Directory:**<br><code>https://github.com/Ozhana/Fedora_Hardening/tree/main/DOCKER_NETWORK_ISOLATION</code> | **Depo Dizini:**<br><code>https://github.com/Ozhana/Fedora_Hardening/tree/main/DOCKER_NETWORK_ISOLATION</code> |
 
 ---
 
@@ -13,7 +12,7 @@ mkdir -p ~/aegis-docker-installer && cd ~/aegis-docker-installer && cat << 'EOF'
 
 | ENGLISH | TÜRKÇE |
 |---------|--------|
-| <code>curl -sSL https://raw.githubusercontent.com/Ozhana/Fedora_Hardening/main/DOCKER_NETWORK_ISOLATION/aegis-docker-fw.sh -o /tmp/aegis.sh</code> | <code>curl -sSL https://raw.githubusercontent.com/Ozhana/Fedora_Hardening/main/DOCKER_NETWORK_ISOLATION/aegis-docker-fw.sh -o /tmp/aegis.sh</code> |
+| Download the secure script directly to the local execution workspace:<br><br><code>curl -sSL https://raw.githubusercontent.com/Ozhana/Fedora_Hardening/main/DOCKER_NETWORK_ISOLATION/aegis-docker-fw.sh -o ~/aegis-docker-installer/aegis-docker-fw.sh</code> | Güvenli betiği doğrudan yerel çalışma alanına indirin:<br><br><code>curl -sSL https://raw.githubusercontent.com/Ozhana/Fedora_Hardening/main/DOCKER_NETWORK_ISOLATION/aegis-docker-fw.sh -o ~/aegis-docker-installer/aegis-docker-fw.sh</code> |
 
 ---
 
@@ -21,7 +20,7 @@ mkdir -p ~/aegis-docker-installer && cd ~/aegis-docker-installer && cat << 'EOF'
 
 | ENGLISH | TÜRKÇE |
 |---------|--------|
-| <code>chmod +x /tmp/aegis.sh</code> | <code>chmod +x /tmp/aegis.sh</code> |
+| Relocate the script to the trusted path and restrict write permissions to root only:<br><br><code>sudo cp aegis-docker-fw.sh /usr/local/bin/aegis-docker-fw.sh</code><br><code>sudo chown root:root /usr/local/bin/aegis-docker-fw.sh</code><br><code>sudo chmod 700 /usr/local/bin/aegis-docker-fw.sh</code> | Betiği güvenilir yola taşıyın ve yazma yetkilerini yalnızca root kullanıcısı ile sınırlandırın:<br><br><code>sudo cp aegis-docker-fw.sh /usr/local/bin/aegis-docker-fw.sh</code><br><code>sudo chown root:root /usr/local/bin/aegis-docker-fw.sh</code><br><code>sudo chmod 700 /usr/local/bin/aegis-docker-fw.sh</code> |
 
 ---
 
@@ -29,8 +28,7 @@ mkdir -p ~/aegis-docker-installer && cd ~/aegis-docker-installer && cat << 'EOF'
 
 | ENGLISH | TÜRKÇE |
 |---------|--------|
-| <code>sudo /tmp/aegis.sh</code> | <code>sudo /tmp/aegis.sh</code> |
-| *The script is idempotent – running it again changes nothing.* | *Betik idempotenttir – tekrar çalıştırmak hiçbir şeyi değiştirmez.* |
+| Run the hardening script with administrative privileges:<br><br><code>sudo /usr/local/bin/aegis-docker-fw.sh</code><br><br>*The script is idempotent – running it again changes nothing.* | Sıkılaştırma betiğini yönetici yetkileriyle çalıştırın:<br><br><code>sudo /usr/local/bin/aegis-docker-fw.sh</code><br><br>*Betik idempotenttir – tekrar çalıştırmak hiçbir şeyi değiştirmez.* |
 
 ---
 
@@ -44,7 +42,7 @@ mkdir -p ~/aegis-docker-installer && cd ~/aegis-docker-installer && cat << 'EOF'
 
 | ENGLISH | TÜRKÇE |
 |---------|--------|
-| <code>ss -tulpn \| grep docker-proxy</code><br><br>Should show only <code>127.0.0.1:xxxx</code> listeners.<br><br><code>iptables -v -L DOCKER-USER -n</code><br><br>Must contain the REJECT rule at the end.<br><br><code>ip6tables -v -L DOCKER-USER -n</code><br><br>(only if IPv6 is enabled) must show <code>icmp6-adm-prohibited</code>. | <code>ss -tulpn \| grep docker-proxy</code><br><br>Sadece <code>127.0.0.1:xxxx</code> dinleyicilerini göstermeli.<br><br><code>iptables -v -L DOCKER-USER -n</code><br><br>Sonda REJECT kuralını içermeli.<br><br><code>ip6tables -v -L DOCKER-USER -n</code><br><br>(sadece IPv6 aktifse) <code>icmp6-adm-prohibited</code> göstermeli. |
+| Verify Docker only listens on localhost:<br><code>ss -tulpn \| grep dockerd</code><br><br>Verify IPv4 rules are active in the kernel structure:<br><code>sudo iptables -v -L DOCKER-USER -n</code><br><br>Verify IPv6 rules (if IPv6 is globally active):<br><code>sudo ip6tables -v -L DOCKER-USER -n</code> | Docker'ın yalnızca localhost üzerinde dinlediğini doğrulayın:<br><code>ss -tulpn \| grep dockerd</code><br><br>IPv4 kurallarının çekirdek yapısında aktif olduğunu doğrulayın:<br><code>sudo iptables -v -L DOCKER-USER -n</code><br><br>IPv6 kurallarını doğrulayın (eğer IPv6 küresel olarak aktifse):<br><code>sudo ip6tables -v -L DOCKER-USER -n</code> |
 
 ---
 
@@ -52,7 +50,7 @@ mkdir -p ~/aegis-docker-installer && cd ~/aegis-docker-installer && cat << 'EOF'
 
 | ENGLISH | TÜRKÇE |
 |---------|--------|
-| The script automatically creates timestamped backups before changes:<br><br><code>/etc/docker/daemon.json.aegis_bak_YYYYMMDD_HHMMSS</code><br><code>/etc/firewalld/direct.xml.aegis_bak_YYYYMMDD_HHMMSS</code><br><br>**Manual rollback:**<br><br><code>sudo cp /etc/docker/daemon.json.aegis_bak_* /etc/docker/daemon.json</code><br><code>sudo systemctl restart docker</code><br><code>sudo cp /etc/firewalld/direct.xml.aegis_bak_* /etc/firewalld/direct.xml</code><br><code>sudo firewall-cmd --reload</code> | Betik, değişiklik öncesinde zaman damgalı yedekler oluşturur:<br><br><code>/etc/docker/daemon.json.aegis_bak_YYYYMMDD_HHMMSS</code><br><code>/etc/firewalld/direct.xml.aegis_bak_YYYYMMDD_HHMMSS</code><br><br>**Manuel geri dönüş:**<br><br><code>sudo cp /etc/docker/daemon.json.aegis_bak_* /etc/docker/daemon.json</code><br><code>sudo systemctl restart docker</code><br><code>sudo cp /etc/firewalld/direct.xml.aegis_bak_* /etc/firewalld/direct.xml</code><br><code>sudo firewall-cmd --reload</code> |
+| The script automatically creates timestamped backups before changes:<br><br><code>/etc/docker/daemon.json.aegis_bak_YYYYMMDD_HHMMSS</code><br><code>/etc/firewalld/direct.xml.aegis_bak_YYYYMMDD_HHMMSS</code><br><br>**Manual rollback:**<br>*(Replace YY... with your exact backup timestamp)*<br><br><code>sudo cp /etc/docker/daemon.json.aegis_bak_YYYYMMDD_HHMMSS /etc/docker/daemon.json</code><br><code>sudo systemctl restart docker</code><br><code>sudo cp /etc/firewalld/direct.xml.aegis_bak_YYYYMMDD_HHMMSS /etc/firewalld/direct.xml</code><br><code>sudo firewall-cmd --reload</code> | Betik, değişiklik öncesinde zaman damgalı yedekler oluşturur:<br><br><code>/etc/docker/daemon.json.aegis_bak_YYYYMMDD_HHMMSS</code><br><code>/etc/firewalld/direct.xml.aegis_bak_YYYYMMDD_HHMMSS</code><br><br>**Manuel geri dönüş:**<br>*(YY... kısmını kendi yedek zaman damganızla değiştirin)*<br><br><code>sudo cp /etc/docker/daemon.json.aegis_bak_YYYYMMDD_HHMMSS /etc/docker/daemon.json</code><br><code>sudo systemctl restart docker</code><br><code>sudo cp /etc/firewalld/direct.xml.aegis_bak_YYYYMMDD_HHMMSS /etc/firewalld/direct.xml</code><br><code>sudo firewall-cmd --reload</code> |
 
 ---
 
@@ -77,4 +75,3 @@ mkdir -p ~/aegis-docker-installer && cd ~/aegis-docker-installer && cat << 'EOF'
 ## 📜 License / Lisans
 
 MIT – free to use, share, and modify with credit.
-EOF
