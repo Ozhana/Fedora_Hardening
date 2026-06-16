@@ -3,7 +3,7 @@
 # BETİK ADI      : aegis-deep-warden.sh
 # AMAÇ           : Rootkit, Virüs, Bozuk Sektör ve BTRFS Derin Avcı Protokolü
 # YAZAN          : Dr. Ozhan Akdag & Yoldaş (Military-Grade Cyber Security Alliance)
-# SÜRÜM          : 6.1.0-FINAL (Kontrollü Hata Yönetimi & BTRFS Düzeltmesi)
+# SÜRÜM          : 6.2.0-ELITE (Deterministic Finality & Resumable Scrub Architecture)
 # KRİTER         : Pure POSIX Bash & AWK, Zero-Dependency, Heavy-Duty Audit
 # SIKILAŞTIRMA   : Process-Isolated Trapping, Hardened Inode Lock, Locale-Agnostic
 # ==============================================================================
@@ -113,6 +113,11 @@ cleanup() {
         fi
     fi
     
+    # Eğer aktif bir BTRFS scrub kalmışsa arkamızda çöp bırakmıyoruz
+    set +e
+    btrfs scrub status / 2>/dev/null | grep -q "running" && btrfs scrub cancel / &>/dev/null
+    set -e
+
     sync || true
     
     if [[ "${LOCK_FD_ACQUIRED}" == "true" ]]; then
@@ -252,7 +257,6 @@ run_clamscan_deep() {
             log_event "INFO" "Tarama odağı: ${path}"
             printf '  • Fokus Dizin: %s\n' "${path}"
             
-            # Düzeltme: --exclude-dir tam yol olmalı, regex değil
             set +e
             ionice -c 3 nice -n 19 clamscan -r "${path}" \
                 --infected \
@@ -314,7 +318,7 @@ run_forensics_audit() {
     check_thermal
 }
 
-# 5.4 - BTRFS VERİ BÜTÜNLÜĞÜ VE TERMAL-DAMPING SCRUB (RESUME DÜZELTİLDİ)
+# 5.4 - BTRFS VERİ BÜTÜNLÜĞÜ VE TERMAL-DAMPING SCRUB (MUTLAK DOĞRULUKLU ARTIŞLI MOTOR)
 run_btrfs_safer_scrub() {
     printf '%b' "${BLUE}[4/5] BTRFS Dosya Sistemi Blok Bütünlüğü (Termal-Damping Scrub)...${NC}\n"
     log_event "INFO" "BTRFS Scrub işlemi başlatılıyor."
@@ -332,30 +336,31 @@ run_btrfs_safer_scrub() {
     
     check_thermal
     
-    # İlk başlatma – her zaman start kullan, zaten varsa devam eder
+    # İlk mühür: Eğer sistemde daha önceden yarıda kalmış bir scrub yoksa start ile ateşlenir
     set +e
     ionice -c 3 nice -n 19 btrfs scrub start / >> "${WARDEN_LOG}" 2>&1
     local btrfs_start_status=$?
     set -e
     
+    # Eğer zaten çalışıyorsa veya askıdaysa sorun etme, takibe geç
     if [[ ${btrfs_start_status} -ne 0 ]]; then
-        log_event "ERROR" "BTRFS Scrub başlatılamadı. Çıkış kodu: ${btrfs_start_status}"
-        printf '%b' "${RED}[X] BTRFS Scrub start başarısız.${NC}\n"
-        return
+        log_event "INFO" "BTRFS scrub zaten mevcut veya duraklatılmış, döngüye bağlanıyor."
     fi
     
     local scrub_finished=0
     while [[ ${scrub_finished} -eq 0 ]]; do
-        local temp_raw temp
+        local temp_raw temp is_running
         temp_raw=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null || echo "0")
         temp=$((temp_raw / 1000))
         
         if [[ ${temp} -ge ${THERMAL_THRESHOLD} ]]; then
-            log_event "WARN" "Scrub sırasında termal eşik aşıldı (${temp}°C). Scrub iptal ediliyor."
+            log_event "WARN" "Scrub sırasında termal eşik aşıldı (${temp}°C). Scrub güvenli askıya alınıyor (Cancel)."
             printf '%b' "${YELLOW}[!] Scrub iptal edildi, soğuma bekleniyor...${NC}\n"
             
             set +e
             btrfs scrub cancel / >> "${WARDEN_LOG}" 2>&1
+            # Kernel katmanının cancel işlemini işlemesi için zaman tanıyoruz
+            sleep 3
             set -e
             
             while [[ ${temp} -ge $((THERMAL_THRESHOLD - 10)) ]]; do
@@ -364,23 +369,25 @@ run_btrfs_safer_scrub() {
                 temp=$((temp_raw / 1000))
             done
             
-            log_event "INFO" "Sıcaklık düştü (${temp}°C). Scrub kaldığı yerden devam ediyor."
-            printf '%b' "${GREEN}[+] Soğuma tamamlandı, scrub yeniden başlatılıyor...${NC}\n"
+            log_event "INFO" "Sıcaklık düştü (${temp}°C). Scrub RESUME motoru tetikleniyor."
+            printf '%b' "${GREEN}[+] Soğuma tamamlandı, scrub kalındığı yerden devam ettiriliyor...${NC}\n"
             
-            # Başlat – zaten varsa kaldığı yerden devam eder (resume işlevi)
+            # DOĞRU MÜHENDİSLİK: Start her şeyi sıfırlar, resume ise kaldığı izden devam eder!
             set +e
-            ionice -c 3 nice -n 19 btrfs scrub start / >> "${WARDEN_LOG}" 2>&1
+            ionice -c 3 nice -n 19 btrfs scrub resume / >> "${WARDEN_LOG}" 2>&1
             local resume_status=$?
             set -e
             if [[ ${resume_status} -ne 0 ]]; then
-                log_event "ERROR" "Scrub yeniden başlatılamadı. KOD: ${resume_status}"
-                break
+                log_event "ERROR" "Scrub resume edilemedi, start deneniyor."
+                set +e
+                btrfs scrub start / >> "${WARDEN_LOG}" 2>&1
+                set -e
             fi
         fi
         
         set +e
         btrfs scrub status / 2>/dev/null | grep -q "running"
-        local is_running=$?
+        is_running=$?
         set -e
         
         if [[ ${is_running} -eq 0 ]]; then
