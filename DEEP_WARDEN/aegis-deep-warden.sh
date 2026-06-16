@@ -3,7 +3,7 @@
 # BETİK ADI      : aegis-deep-warden.sh
 # AMAÇ           : Rootkit, Virüs, Bozuk Sektör ve BTRFS Derin Avcı Protokolü
 # YAZAN          : Dr. Ozhan Akdag & Yoldaş (Military-Grade Cyber Security Alliance)
-# SÜRÜM          : 6.2.0-ELITE (Deterministic Finality & Resumable Scrub Architecture)
+# SÜRÜM          : 6.0.0-ELITE (Deterministic Finality & Zero-False-Positive)
 # KRİTER         : Pure POSIX Bash & AWK, Zero-Dependency, Heavy-Duty Audit
 # SIKILAŞTIRMA   : Process-Isolated Trapping, Hardened Inode Lock, Locale-Agnostic
 # ==============================================================================
@@ -69,6 +69,7 @@ check_thermal() {
         log_event "CRITICAL" "Termal sınır aşıldı (${temp}°C). Süreçler askıya alınıyor."
         printf '%b' "${RED}[!] TERMAL COMA PROTECTION: İşlemci sıcaklığı ${temp}°C! Soğuma bekleniyor...${NC}\n" >&2
         
+        # kill -0 çağrısının set -e'yi patlatmaması için alt kabuk veya durum kontrolü yapıyoruz
         is_running="false"
         if [[ -n "${CURRENT_ASYNC_PID}" ]]; then
             if kill -0 "${CURRENT_ASYNC_PID}" 2>/dev/null; then
@@ -106,6 +107,7 @@ cleanup() {
     
     log_event "INFO" "Cleanup tetiklendi. Çıkış kodu: ${exit_code}"
     
+    # Süreç varlık kontrolünü set -e güvenli hale getirdik
     if [[ -n "${CURRENT_ASYNC_PID}" ]]; then
         if kill -0 "${CURRENT_ASYNC_PID}" 2>/dev/null; then
             log_event "WARN" "Yarıda kalan aktif asenkron süreç infaz ediliyor: PID ${CURRENT_ASYNC_PID}"
@@ -113,11 +115,6 @@ cleanup() {
         fi
     fi
     
-    # Eğer aktif bir BTRFS scrub kalmışsa arkamızda çöp bırakmıyoruz
-    set +e
-    btrfs scrub status / 2>/dev/null | grep -q "running" && btrfs scrub cancel / &>/dev/null
-    set -e
-
     sync || true
     
     if [[ "${LOCK_FD_ACQUIRED}" == "true" ]]; then
@@ -257,13 +254,15 @@ run_clamscan_deep() {
             log_event "INFO" "Tarama odağı: ${path}"
             printf '  • Fokus Dizin: %s\n' "${path}"
             
+            # Clamscan virüs bulduğunda 1 koduyla döner ve set -e betiği öldürür. 
+            # Bunu engellemek için durum kodunu kontrollü yakalıyoruz.
             set +e
             ionice -c 3 nice -n 19 clamscan -r "${path}" \
                 --infected \
                 --bell \
-                --exclude-dir="/sys" \
-                --exclude-dir="/dev" \
-                --exclude-dir="/proc" \
+                --exclude-dir="^/sys$" \
+                --exclude-dir="^/dev$" \
+                --exclude-dir="^/proc$" \
                 >> "${WARDEN_LOG}" 2>&1
             local clam_status=$?
             set -e
@@ -318,7 +317,7 @@ run_forensics_audit() {
     check_thermal
 }
 
-# 5.4 - BTRFS VERİ BÜTÜNLÜĞÜ VE TERMAL-DAMPING SCRUB (MUTLAK DOĞRULUKLU ARTIŞLI MOTOR)
+# 5.4 - BTRFS VERİ BÜTÜNLÜĞÜ VE TERMAL-DAMPING SCRUB (RESUMABLE ENGINE)
 run_btrfs_safer_scrub() {
     printf '%b' "${BLUE}[4/5] BTRFS Dosya Sistemi Blok Bütünlüğü (Termal-Damping Scrub)...${NC}\n"
     log_event "INFO" "BTRFS Scrub işlemi başlatılıyor."
@@ -336,15 +335,16 @@ run_btrfs_safer_scrub() {
     
     check_thermal
     
-    # İlk mühür: Eğer sistemde daha önceden yarıda kalmış bir scrub yoksa start ile ateşlenir
+    local run_cmd="start"
     set +e
-    ionice -c 3 nice -n 19 btrfs scrub start / >> "${WARDEN_LOG}" 2>&1
+    ionice -c 3 nice -n 19 btrfs scrub ${run_cmd} / >> "${WARDEN_LOG}" 2>&1
     local btrfs_start_status=$?
     set -e
     
-    # Eğer zaten çalışıyorsa veya askıdaysa sorun etme, takibe geç
     if [[ ${btrfs_start_status} -ne 0 ]]; then
-        log_event "INFO" "BTRFS scrub zaten mevcut veya duraklatılmış, döngüye bağlanıyor."
+        log_event "ERROR" "BTRFS Scrub başlatılamadı. Çıkış kodu: ${btrfs_start_status}"
+        printf '%b' "${RED}[X] BTRFS Scrub start başarısız.${NC}\n"
+        return
     fi
     
     local scrub_finished=0
@@ -354,13 +354,11 @@ run_btrfs_safer_scrub() {
         temp=$((temp_raw / 1000))
         
         if [[ ${temp} -ge ${THERMAL_THRESHOLD} ]]; then
-            log_event "WARN" "Scrub sırasında termal eşik aşıldı (${temp}°C). Scrub güvenli askıya alınıyor (Cancel)."
+            log_event "WARN" "Scrub sırasında termal eşik aşıldı (${temp}°C). Scrub askıya alınıyor."
             printf '%b' "${YELLOW}[!] Scrub iptal edildi, soğuma bekleniyor...${NC}\n"
             
             set +e
             btrfs scrub cancel / >> "${WARDEN_LOG}" 2>&1
-            # Kernel katmanının cancel işlemini işlemesi için zaman tanıyoruz
-            sleep 3
             set -e
             
             while [[ ${temp} -ge $((THERMAL_THRESHOLD - 10)) ]]; do
@@ -369,22 +367,21 @@ run_btrfs_safer_scrub() {
                 temp=$((temp_raw / 1000))
             done
             
-            log_event "INFO" "Sıcaklık düştü (${temp}°C). Scrub RESUME motoru tetikleniyor."
-            printf '%b' "${GREEN}[+] Soğuma tamamlandı, scrub kalındığı yerden devam ettiriliyor...${NC}\n"
+            log_event "INFO" "Sıcaklık düştü (${temp}°C). Scrub kalındığı yerden RESUME ediliyor."
+            printf '%b' "${GREEN}[+] Soğuma tamamlandı, scrub kaldığı yerden devam ediyor...${NC}\n"
             
-            # DOĞRU MÜHENDİSLİK: Start her şeyi sıfırlar, resume ise kaldığı izden devam eder!
+            run_cmd="resume"
             set +e
-            ionice -c 3 nice -n 19 btrfs scrub resume / >> "${WARDEN_LOG}" 2>&1
+            ionice -c 3 nice -n 19 btrfs scrub ${run_cmd} / >> "${WARDEN_LOG}" 2>&1
             local resume_status=$?
             set -e
             if [[ ${resume_status} -ne 0 ]]; then
-                log_event "ERROR" "Scrub resume edilemedi, start deneniyor."
-                set +e
-                btrfs scrub start / >> "${WARDEN_LOG}" 2>&1
-                set -e
+                log_event "ERROR" "Scrub resume edilemedi. KOD: ${resume_status}"
+                break
             fi
         fi
         
+        # grep -q durumunun set -e'yi tetiklememesi için set +e bariyerine alıyoruz
         set +e
         btrfs scrub status / 2>/dev/null | grep -q "running"
         is_running=$?
@@ -399,6 +396,7 @@ run_btrfs_safer_scrub() {
     
     if [[ ${scrub_finished} -eq 1 ]]; then
         local scrub_errors
+        # AWK ve Grep boru hattını koruma altına alıyoruz
         set +e
         scrub_errors=$(btrfs scrub status / 2>/dev/null | grep -E "csum_errors|correctable" | awk '{sum+=$2} END {print sum+0}')
         set -e
@@ -448,6 +446,7 @@ run_hardware_sector_hunter() {
         
         printf '  • Bozuk Sektör Avcısı Ateşleniyor (Bu işlem zaman alabilir, bekleyin)...\n'
         
+        # badblocks asenkron başlatılıyor
         ionice -c 3 nice -n 19 badblocks -b 4096 -s -v "${root_disk}" > "${LOCK_DIR}/badblocks_sectors.tmp" 2> "${LOCK_DIR}/badblocks_progress.tmp" &
         CURRENT_ASYNC_PID=$!
         log_event "INFO" "Badblocks asenkron motoru ateşlendi. PID: ${CURRENT_ASYNC_PID}"
