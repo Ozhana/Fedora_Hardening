@@ -44,5 +44,3 @@
 | Configuration backups | Automatic .bak files | Enable quick rollback | Manual recovery harder |
 
 ---
-
-**End of README**
