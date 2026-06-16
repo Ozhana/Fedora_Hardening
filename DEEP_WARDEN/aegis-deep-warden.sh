@@ -3,7 +3,7 @@
 # BETİK ADI      : aegis-deep-warden.sh
 # AMAÇ           : Rootkit, Virüs, Bozuk Sektör ve BTRFS Derin Avcı Protokolü
 # YAZAN          : Dr. Ozhan Akdag & Yoldaş (Military-Grade Cyber Security Alliance)
-# SÜRÜM          : 5.0.0-ELITE (Deterministic Finality & Zero-False-Positive)
+# SÜRÜM          : 6.0.0-ELITE (Deterministic Finality & Zero-False-Positive)
 # KRİTER         : Pure POSIX Bash & AWK, Zero-Dependency, Heavy-Duty Audit
 # SIKILAŞTIRMA   : Process-Isolated Trapping, Hardened Inode Lock, Locale-Agnostic
 # ==============================================================================
@@ -61,7 +61,7 @@ log_event() {
 
 # ---- TERMAL KORUMA (Asenkron Süreç Durdurma Yetenekli) ----
 check_thermal() {
-    local temp_raw temp
+    local temp_raw temp is_running
     temp_raw=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null || echo "0")
     temp=$((temp_raw / 1000))
     
@@ -69,7 +69,15 @@ check_thermal() {
         log_event "CRITICAL" "Termal sınır aşıldı (${temp}°C). Süreçler askıya alınıyor."
         printf '%b' "${RED}[!] TERMAL COMA PROTECTION: İşlemci sıcaklığı ${temp}°C! Soğuma bekleniyor...${NC}\n" >&2
         
-        if [[ -n "${CURRENT_ASYNC_PID}" ]] && kill -0 "${CURRENT_ASYNC_PID}" 2>/dev/null; then
+        # kill -0 çağrısının set -e'yi patlatmaması için alt kabuk veya durum kontrolü yapıyoruz
+        is_running="false"
+        if [[ -n "${CURRENT_ASYNC_PID}" ]]; then
+            if kill -0 "${CURRENT_ASYNC_PID}" 2>/dev/null; then
+                is_running="true"
+            fi
+        fi
+
+        if [[ "${is_running}" == "true" ]]; then
             kill -SIGSTOP "${CURRENT_ASYNC_PID}" 2>/dev/null || true
             log_event "INFO" "Asenkron alt süreç (PID: ${CURRENT_ASYNC_PID}) geçici olarak donduruldu."
         fi
@@ -80,9 +88,11 @@ check_thermal() {
             temp=$((temp_raw / 1000))
         done
         
-        if [[ -n "${CURRENT_ASYNC_PID}" ]] && kill -0 "${CURRENT_ASYNC_PID}" 2>/dev/null; then
-            kill -SIGCONT "${CURRENT_ASYNC_PID}" 2>/dev/null || true
-            log_event "INFO" "Asenkron alt süreç (PID: ${CURRENT_ASYNC_PID}) yeniden uyandırıldı."
+        if [[ "${is_running}" == "true" ]]; then
+            if kill -0 "${CURRENT_ASYNC_PID}" 2>/dev/null; then
+                kill -SIGCONT "${CURRENT_ASYNC_PID}" 2>/dev/null || true
+                log_event "INFO" "Asenkron alt süreç (PID: ${CURRENT_ASYNC_PID}) yeniden uyandırıldı."
+            fi
         fi
         
         log_event "INFO" "Sistem soğudu (${temp}°C), derin av operasyonuna devam ediliyor."
@@ -97,9 +107,12 @@ cleanup() {
     
     log_event "INFO" "Cleanup tetiklendi. Çıkış kodu: ${exit_code}"
     
-    if [[ -n "${CURRENT_ASYNC_PID}" ]] && kill -0 "${CURRENT_ASYNC_PID}" 2>/dev/null; then
-        log_event "WARN" "Yarıda kalan aktif asenkron süreç infaz ediliyor: PID ${CURRENT_ASYNC_PID}"
-        kill -9 "${CURRENT_ASYNC_PID}" 2>/dev/null || true
+    # Süreç varlık kontrolünü set -e güvenli hale getirdik
+    if [[ -n "${CURRENT_ASYNC_PID}" ]]; then
+        if kill -0 "${CURRENT_ASYNC_PID}" 2>/dev/null; then
+            log_event "WARN" "Yarıda kalan aktif asenkron süreç infaz ediliyor: PID ${CURRENT_ASYNC_PID}"
+            kill -9 "${CURRENT_ASYNC_PID}" 2>/dev/null || true
+        fi
     fi
     
     sync || true
@@ -176,7 +189,7 @@ check_prerequisites() {
 # ---- ONAY VE KOGNİTİF SÜRTÜNME MATRİSİ ----
 human_authorization() {
     printf '%b' "${BLUE}======================================================================${NC}\n"
-    printf '%b' "${CYAN}${BOLD}     🛡️  **AEGIS MASTER DEEP WARDEN - ULTIMATE WEEKLY ENGINE** ${NC}\n"
+    printf '%b' "${CYAN}${BOLD}      🛡️  **AEGIS MASTER DEEP WARDEN - ULTIMATE WEEKLY ENGINE** ${NC}\n"
     printf '%b' "${BLUE}======================================================================${NC}\n"
     printf '%b' "${YELLOW}[UYARI]: Bu tarama sistemi en derin donanım ve dosya seviyesinde inceler.${NC}\n"
     printf '  • ClamAV Derin Dizin ve Bellek Avı tetiklenecek.\n'
@@ -210,10 +223,22 @@ update_signatures() {
     printf '%b' "${BLUE}[1/5] Kutsal İmza ve Rootkit Tanımlamaları Güncelleniyor...${NC}\n"
     log_event "INFO" "Freshclam imza güncellemesi tetiklendi."
     
-    ionice -c 3 nice -n 19 freshclam >> "${WARDEN_LOG}" 2>&1 || log_event "WARN" "Freshclam sunucuya erişemedi, yerel imzalarla devam edilecek."
+    set +e
+    ionice -c 3 nice -n 19 freshclam >> "${WARDEN_LOG}" 2>&1
+    local fc_status=$?
+    set -e
+    if [[ ${fc_status} -ne 0 ]]; then
+        log_event "WARN" "Freshclam sunucuya erişemedi (Durum: ${fc_status}), yerel imzalarla devam edilecek."
+    fi
     
     log_event "INFO" "Rkhunter veri güncellemeleri tetiklendi."
-    ionice -c 3 nice -n 19 rkhunter --update >> "${WARDEN_LOG}" 2>&1 || log_event "WARN" "Rkhunter veri tabanı güncellenemedi."
+    set +e
+    ionice -c 3 nice -n 19 rkhunter --update >> "${WARDEN_LOG}" 2>&1
+    local rk_status=$?
+    set -e
+    if [[ ${rk_status} -ne 0 ]]; then
+        log_event "WARN" "Rkhunter veri tabanı güncellenirken kod fırlattı (Durum: ${rk_status})."
+    fi
 }
 
 # 5.2 - CLAMAV DERİN İNDİS VE BELLEK AVCI MOTORU
@@ -229,14 +254,24 @@ run_clamscan_deep() {
             log_event "INFO" "Tarama odağı: ${path}"
             printf '  • Fokus Dizin: %s\n' "${path}"
             
-            # Substring regex tuzağı aşılması için katı çapa (^ ve $) yerleştirildi
+            # Clamscan virüs bulduğunda 1 koduyla döner ve set -e betiği öldürür. 
+            # Bunu engellemek için durum kodunu kontrollü yakalıyoruz.
+            set +e
             ionice -c 3 nice -n 19 clamscan -r "${path}" \
                 --infected \
                 --bell \
                 --exclude-dir="^/sys$" \
                 --exclude-dir="^/dev$" \
                 --exclude-dir="^/proc$" \
-                >> "${WARDEN_LOG}" 2>&1 || log_event "WARN" "Clamscan ${path} üzerinde şüpheli nesneler yakaladı."
+                >> "${WARDEN_LOG}" 2>&1
+            local clam_status=$?
+            set -e
+            
+            if [[ ${clam_status} -ne 0 && ${clam_status} -ne 1 ]]; then
+                log_event "WARN" "Clamscan ${path} üzerinde beklenmeyen bir çıkış kodu verdi: ${clam_status}"
+            elif [[ ${clam_status} -eq 1 ]]; then
+                log_event "WARN" "Clamscan ${path} üzerinde şüpheli/zararlı nesneler yakaladı!"
+            fi
             
             check_thermal
         fi
@@ -250,7 +285,13 @@ run_forensics_audit() {
     log_event "INFO" "Rkhunter adli denetimi başladı."
     check_thermal
     
-    ionice -c 3 nice -n 19 rkhunter --check --sk --nocolor --report-warnings-only >> "${WARDEN_LOG}" 2>&1 || true
+    set +e
+    ionice -c 3 nice -n 19 rkhunter --check --sk --nocolor --report-warnings-only >> "${WARDEN_LOG}" 2>&1
+    local rkh_check=$?
+    set -e
+    if [[ ${rkh_check} -ne 0 ]]; then
+        log_event "WARN" "Rkhunter uyarılar veya anomaliler yakaladı. Çıkış kodu: ${rkh_check}"
+    fi
     
     log_event "INFO" "AIDE bütünlük kontrolü tetikleniyor."
     local aide_db="/var/lib/aide/aide.db.gz"
@@ -266,7 +307,7 @@ run_forensics_audit() {
             cat "${LOCK_DIR}/aide_result.tmp" >> "${WARDEN_LOG}"
         else
             log_event "INFO" "AIDE doğrulaması başarılı. Statik sistem namusu korunuyor."
-            printf '%b' "${GREEN}  ✓ Statik Sistem Dosya Bütünlüğü: GÜVENLİ${NC}\n"
+            printf '%b' "${GREEN}   ✓ Statik Sistem Dosya Bütünlüğü: GÜVENLİ${NC}\n"
         fi
         rm -f "${LOCK_DIR}/aide_result.tmp" 2>/dev/null || true
     else
@@ -281,32 +322,44 @@ run_btrfs_safer_scrub() {
     printf '%b' "${BLUE}[4/5] BTRFS Dosya Sistemi Blok Bütünlüğü (Termal-Damping Scrub)...${NC}\n"
     log_event "INFO" "BTRFS Scrub işlemi başlatılıyor."
     
-    if ! btrfs scrub status / &>/dev/null; then
-        log_event "WARN" "Kök dizin BTRFS yapısında değil veya Scrub çalıştırılamıyor."
-        printf '%b' "${YELLOW}  [!] BTRFS bulunamadı, atlanıyor.${NC}\n"
+    set +e
+    btrfs scrub status / &>/dev/null
+    local btrfs_check=$?
+    set -e
+    
+    if [[ ${btrfs_check} -ne 0 ]]; then
+        log_event "WARN" "Kök dizin BTRFS yapısında değil veya Scrub şu an aktif edilemiyor."
+        printf '%b' "${YELLOW}  [!] BTRFS bulunamadı veya meşgul, atlanıyor.${NC}\n"
         return
     fi
     
     check_thermal
     
-    # İlk döngü tetiklemesi start ile yapılır
     local run_cmd="start"
-    ionice -c 3 nice -n 19 btrfs scrub ${run_cmd} / >> "${WARDEN_LOG}" 2>&1 || {
-        log_event "ERROR" "BTRFS Scrub başlatılamadı."
+    set +e
+    ionice -c 3 nice -n 19 btrfs scrub ${run_cmd} / >> "${WARDEN_LOG}" 2>&1
+    local btrfs_start_status=$?
+    set -e
+    
+    if [[ ${btrfs_start_status} -ne 0 ]]; then
+        log_event "ERROR" "BTRFS Scrub başlatılamadı. Çıkış kodu: ${btrfs_start_status}"
         printf '%b' "${RED}[X] BTRFS Scrub start başarısız.${NC}\n"
         return
-    }
+    fi
     
     local scrub_finished=0
     while [[ ${scrub_finished} -eq 0 ]]; do
-        local temp_raw temp
+        local temp_raw temp is_running
         temp_raw=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null || echo "0")
         temp=$((temp_raw / 1000))
         
         if [[ ${temp} -ge ${THERMAL_THRESHOLD} ]]; then
-            log_event "WARN" "Scrub sırasında termal eşik aşıldı (${temp}°C). Scrub askıya alınıyor (Cancel)."
+            log_event "WARN" "Scrub sırasında termal eşik aşıldı (${temp}°C). Scrub askıya alınıyor."
             printf '%b' "${YELLOW}[!] Scrub iptal edildi, soğuma bekleniyor...${NC}\n"
-            btrfs scrub cancel / >> "${WARDEN_LOG}" 2>&1 || true
+            
+            set +e
+            btrfs scrub cancel / >> "${WARDEN_LOG}" 2>&1
+            set -e
             
             while [[ ${temp} -ge $((THERMAL_THRESHOLD - 10)) ]]; do
                 sleep 15
@@ -317,15 +370,24 @@ run_btrfs_safer_scrub() {
             log_event "INFO" "Sıcaklık düştü (${temp}°C). Scrub kalındığı yerden RESUME ediliyor."
             printf '%b' "${GREEN}[+] Soğuma tamamlandı, scrub kaldığı yerden devam ediyor...${NC}\n"
             
-            # NAND hücrelerini korumak için en baştan değil, kalındığı yerden resume ateşlenir
             run_cmd="resume"
-            ionice -c 3 nice -n 19 btrfs scrub ${run_cmd} / >> "${WARDEN_LOG}" 2>&1 || {
-                log_event "ERROR" "Scrub resume edilemedi."
+            set +e
+            ionice -c 3 nice -n 19 btrfs scrub ${run_cmd} / >> "${WARDEN_LOG}" 2>&1
+            local resume_status=$?
+            set -e
+            if [[ ${resume_status} -ne 0 ]]; then
+                log_event "ERROR" "Scrub resume edilemedi. KOD: ${resume_status}"
                 break
-            }
+            fi
         fi
         
-        if btrfs scrub status / 2>/dev/null | grep -q "running"; then
+        # grep -q durumunun set -e'yi tetiklememesi için set +e bariyerine alıyoruz
+        set +e
+        btrfs scrub status / 2>/dev/null | grep -q "running"
+        is_running=$?
+        set -e
+        
+        if [[ ${is_running} -eq 0 ]]; then
             sleep 5
         else
             scrub_finished=1
@@ -334,13 +396,16 @@ run_btrfs_safer_scrub() {
     
     if [[ ${scrub_finished} -eq 1 ]]; then
         local scrub_errors
+        # AWK ve Grep boru hattını koruma altına alıyoruz
+        set +e
         scrub_errors=$(btrfs scrub status / 2>/dev/null | grep -E "csum_errors|correctable" | awk '{sum+=$2} END {print sum+0}')
-        if [[ ${scrub_errors} -gt 0 ]]; then
+        set -e
+        if [[ ${scrub_errors:-0} -gt 0 ]]; then
             log_event "ERROR" "BTRFS Scrub veri yozlaşması saptadı! Hata adedi: ${scrub_errors}"
             printf '%b' "${RED}[X] DOSYA SİSTEMİ ANOMALİSİ: BTRFS bütünlük taramasında hatalı bloklar var!${NC}\n" >&2
         else
             log_event "INFO" "BTRFS bütünlük kontrolü temiz bitti."
-            printf '%b' "${GREEN}  ✓ BTRFS Veri Blok Sağlığı: KUSURSUZ${NC}\n"
+            printf '%b' "${GREEN}   ✓ BTRFS Veri Blok Sağlığı: KUSURSUZ${NC}\n"
         fi
     else
         log_event "WARN" "BTRFS Scrub tamamlanamadı."
@@ -358,7 +423,6 @@ run_hardware_sector_hunter() {
     
     if [[ -e "${root_partition}" ]]; then
         root_dev_node=$(lsblk -no PKNAME "${root_partition}" | head -n1 | tr -d ' \t\n')
-        # Eğer partition'ın bir parent'ı yoksa (raw disk kurulumu), disk bölümün kendisidir (Fallback zırhı)
         if [[ -z "${root_dev_node}" ]]; then
             root_disk="${root_partition}"
         else
@@ -372,34 +436,51 @@ run_hardware_sector_hunter() {
         log_event "INFO" "Doğrulanan Fiziksel Ana Sürücü: ${root_disk}"
         printf '  • Donanım Sürücüsü: %s\n' "${root_disk}"
         
-        ionice -c 3 nice -n 19 smartctl -H "${root_disk}" >> "${WARDEN_LOG}" 2>&1 || log_event "WARN" "SMART sağlık testi uyarı verdi."
+        set +e
+        ionice -c 3 nice -n 19 smartctl -H "${root_disk}" >> "${WARDEN_LOG}" 2>&1
+        local smart_status=$?
+        set -e
+        if [[ ${smart_status} -ne 0 ]]; then
+            log_event "WARN" "SMART sağlık testi uyarı veya hata fırlattı (Kod: ${smart_status})."
+        fi
         
         printf '  • Bozuk Sektör Avcısı Ateşleniyor (Bu işlem zaman alabilir, bekleyin)...\n'
         
-        # Yalancı pozitif patlamasını engellemek için stdout (hatalı sektör listesi) ve stderr (ilerleme) ayrıştırıldı
+        # badblocks asenkron başlatılıyor
         ionice -c 3 nice -n 19 badblocks -b 4096 -s -v "${root_disk}" > "${LOCK_DIR}/badblocks_sectors.tmp" 2> "${LOCK_DIR}/badblocks_progress.tmp" &
         CURRENT_ASYNC_PID=$!
         log_event "INFO" "Badblocks asenkron motoru ateşlendi. PID: ${CURRENT_ASYNC_PID}"
         
-        while kill -0 "${CURRENT_ASYNC_PID}" 2>/dev/null; do
-            check_thermal
-            sleep 10
+        local is_alive=0
+        while :; do
+            set +e
+            kill -0 "${CURRENT_ASYNC_PID}" 2>/dev/null
+            is_alive=$?
+            set -e
+            
+            if [[ ${is_alive} -eq 0 ]]; then
+                check_thermal
+                sleep 10
+            else
+                break
+            fi
         done
         
+        set +e
         wait "${CURRENT_ASYNC_PID}"
         local badblocks_status=$?
+        set -e
         CURRENT_ASYNC_PID=""
         
-        # Eğer stdout dosyası dolmuşsa (-s), yani içine bad sector adresleri yazılmışsa veya exit kodu hatalıysa tetiklenir
         if [[ ${badblocks_status} -ne 0 ]] || [[ -s "${LOCK_DIR}/badblocks_sectors.tmp" ]]; then
-            log_event "CRITICAL" "FİZİKSEL DISKTE GERÇEK BOZUK SEKTÖR TESPİT EDİLDİ!"
+            log_event "CRITICAL" "FİZİKSEL DISKTE GERÇEK BOZUK SEKTÖR TESPİT EDİLDİ! Durum Kodu: ${badblocks_status}"
             printf '%b' "${RED}[!] DONANIM ALERTI: NVMe üzerinde donanımsal bozuk sektör(ler) saptandı!${NC}\n" >&2
             if [[ -s "${LOCK_DIR}/badblocks_sectors.tmp" ]]; then
                 cat "${LOCK_DIR}/badblocks_sectors.tmp" >> "${WARDEN_LOG}"
             fi
         else
             log_event "INFO" "Blok Sektör analizi temiz. NAND hücreleri kararlı."
-            printf '%b' "${GREEN}  ✓ NVMe Fiziksel Blok Sektör Namusu: TEMİZ${NC}\n"
+            printf '%b' "${GREEN}   ✓ NVMe Fiziksel Blok Sektör Namusu: TEMİZ${NC}\n"
         fi
         rm -f "${LOCK_DIR}/badblocks_sectors.tmp" "${LOCK_DIR}/badblocks_progress.tmp" 2>/dev/null || true
     else
@@ -426,7 +507,7 @@ main() {
     run_hardware_sector_hunter
     check_thermal
     
-    log_event "END" "Haftalık Master Deep Warden koruma döngüsü başarıyla donduruldu."
+    log_event "END" "Haftalık Master Deep Warden koruma döngüsü başarıyla tamamlandı."
 }
 
 # ---- ASKERİ YÜRÜTME SIRASI ----
