@@ -24,7 +24,7 @@
 ```bash
 rm *.log           # 3'ten fazla log varsa "Remove all arguments?" diye sorar
 rm -rf /some/dir   # Kök dizin koruması sayesinde engellenir
-
+```
 
 Expected Output / Beklenen Çıktı:
 [TR] rm: remove all arguments? sorusu görüntülenir, y/n ile cevaplanmalıdır.
