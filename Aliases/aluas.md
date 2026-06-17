@@ -42,9 +42,10 @@ Syntax / Kullanım:
 cp [options] <source> <destination>
 
 Examples / Örnekler:
-bash
+```bash
 
 cp -ia /etc/important.conf ~/backups/
+```
 # Eğer ~/backups/important.conf mevcutsa "overwrite?" diye sorar.
 
 Expected Output / Beklenen Çıktı:
@@ -84,9 +85,10 @@ Syntax / Kullanım:
 mkdir [options] <directory...>
 
 Examples / Örnekler:
-bash
+```bash
 
 mkdir -pv ~/Projects/MyApp/{src,bin,logs}
+```
 # Tüm ağaç tek seferde oluşturulur ve her adım ekrana yazdırılır.
 
 Expected Output / Beklenen Çıktı:
@@ -105,11 +107,11 @@ Syntax / Kullanım:
 chown [options] <owner>[:<group>] <file...>
 
 Examples / Örnekler:
-bash
+```bash
 
 sudo chown --preserve-root user:group /  # engellenir
 sudo chown user:group /home/user/file    # çalışır
-
+```
 Security Note / Güvenlik Notu:
 A recursive chown on / can render a system unbootable. This alias is a life‑saver.
 
@@ -536,20 +538,19 @@ Log File: ~/Desktop/LOG_FILES/sys-suidscan.log
 
 Dependencies / Bağımlılıklar: find, sudo (to read all directories)
 🔹 General Notes (Genel Notlar)
-
     Logging: All scripts that modify the system or perform security checks write timestamped logs to ~/Desktop/LOG_FILES/. The log filename matches the script name (e.g., secure-sysupdate.log). These logs are invaluable for forensic analysis and troubleshooting.
 
-    Idempotency: Every script can be executed multiple times without side effects. Lock files prevent concurrent execution, and the trap mechanism ensures locks are always released, even after CTRL+C.
+ Idempotency: Every script can be executed multiple times without side effects. Lock files prevent concurrent execution, and the trap mechanism ensures locks are always released, even after CTRL+C.
 
-    Privileges: Most scripts require sudo. Ensure your user has the necessary sudo privileges. The suite does not modify /etc/sudoers.
+Privileges: Most scripts require sudo. Ensure your user has the necessary sudo privileges. The suite does not modify /etc/sudoers.
 
-    Dependencies: Before using the suite, install the required packages:
-    bash
+Dependencies: Before using the suite, install the required packages:
+```bash
 
     sudo dnf install -y firewalld jq rkhunter aide lm_sensors util-linux
+```
+Security Philosophy: This suite is built on the principles of Zero Trust, Human‑in‑the‑loop, and Defence in Depth. Every change is verified, every baseline update requires manual approval, and kernel‑level protections are employed wherever possible.
 
-    Security Philosophy: This suite is built on the principles of Zero Trust, Human‑in‑the‑loop, and Defence in Depth. Every change is verified, every baseline update requires manual approval, and kernel‑level protections are employed wherever possible.
-
-    Yazar / Author: Dr. Ozhan Akdag & Senior Cyber Security Agent (Collaborative design)
+Yazar / Author: Dr. Ozhan Akdag & Senior Cyber Security Agent (Collaborative design)
     Proje Sayfası / Project Page: Fedora Hardening Suite
 
