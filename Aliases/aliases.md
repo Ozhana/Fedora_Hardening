@@ -100,20 +100,56 @@ Place these in `~/.bashrc` for instant health checks.
 
 ### 7.3 Script‑Backed Aliases
 
-Each alias points to a hardened script in `/usr/local/bin`. The script name is given; install the script there and make it executable. Aliases go into `~/.bashrc`.
+Each alias points to a hardened script in `/usr/local/bin`. **Both the alias line and the full script code are provided below.** Place the alias in `~/.bashrc`, save the script to the indicated path, and make it executable.
 
 ---
 
 #### sysupdate
 
 **Alias:** <code>alias sysupdate='secure-sysupdate'</code>  
-**Script:** `/usr/local/bin/secure-sysupdate`  
+**Script location:** `/usr/local/bin/secure-sysupdate`  
 **Purpose:** Atomically runs `sudo dnf upgrade --refresh -y` with a kernel lock.
 
 **What to Expect:**  
 - Concurrent calls are refused.  
 - Log written to `~/Desktop/LOG_FILES/secure-sysupdate.log`.  
 - `CTRL+C` releases the lock instantly.
+
+**Script code (save as `/usr/local/bin/secure-sysupdate`):**
+
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+    IFS=$'\n\t'
+    
+    readonly SCRIPT_NAME="secure-sysupdate"
+    readonly LOG_DIR="${HOME}/Desktop/LOG_FILES"
+    readonly LOG_FILE="${LOG_DIR}/${SCRIPT_NAME}.log"
+    mkdir -p "$LOG_DIR"
+    
+    logmsg() { echo "[$(date '+%F %T')] $*" | tee -a "$LOG_FILE"; }
+    
+    readonly LOCK_DIR="${HOME}/.local/run/locks"
+    readonly LOCK_FILE="${LOCK_DIR}/sysupdate.lock"
+    command -v dnf >/dev/null 2>&1 || { logmsg "[FATAL] 'dnf' bulunamadı."; exit 1; }
+    
+    mkdir -p "$LOCK_DIR"
+    exec 9> "$LOCK_FILE"
+    if ! flock -n 9; then
+        logmsg "[WARN] Güncelleme zaten çalışıyor. PID: $(cat "$LOCK_FILE" 2>/dev/null || echo bilinmiyor)"
+        exit 1
+    fi
+    echo $$ > "$LOCK_FILE"
+    
+    cleanup() {
+        flock -u 9 2>/dev/null || true
+        rm -f "$LOCK_FILE"
+        logmsg "İşlem sonlandı."
+    }
+    trap cleanup EXIT INT TERM
+    
+    logmsg "Sistem güncellemesi başlatıldı."
+    sudo dnf upgrade --refresh -y
+    logmsg "Güncelleme tamamlandı."
 
 **Usage:**  
 
@@ -124,12 +160,30 @@ Each alias points to a hardened script in `/usr/local/bin`. The script name is g
 #### fwaudit
 
 **Alias:** <code>alias fwaudit='secure-fwaudit'</code>  
-**Script:** `/usr/local/bin/secure-fwaudit`  
+**Script location:** `/usr/local/bin/secure-fwaudit`  
 **Purpose:** Dumps the firewalld configuration in a readable `key : value` format.
 
 **What to Expect:**  
 - Shows zones, services, ports.  
 - Log: `~/Desktop/LOG_FILES/secure-fwaudit.log`.
+
+**Script code (save as `/usr/local/bin/secure-fwaudit`):**
+
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+    IFS=$'\n\t'
+    
+    readonly SCRIPT_NAME="secure-fwaudit"
+    readonly LOG_DIR="${HOME}/Desktop/LOG_FILES"
+    readonly LOG_FILE="${LOG_DIR}/${SCRIPT_NAME}.log"
+    mkdir -p "$LOG_DIR"
+    
+    logmsg() { echo "[$(date '+%F %T')] $*" | tee -a "$LOG_FILE"; }
+    
+    command -v firewall-cmd >/dev/null 2>&1 || { logmsg "[FATAL] 'firewall-cmd' bulunamadı."; exit 1; }
+    
+    logmsg "Firewall durumu sorgulanıyor."
+    sudo firewall-cmd --list-all | awk -F': ' 'NF==2 {printf "%-20s : %s\n", $1, $2}' | tee -a "$LOG_FILE"
 
 **Usage:**  
 
@@ -140,12 +194,39 @@ Each alias points to a hardened script in `/usr/local/bin`. The script name is g
 #### svc-check
 
 **Alias:** <code>alias svc-check='secure-svccheck'</code>  
-**Script:** `/usr/local/bin/secure-svccheck`  
+**Script location:** `/usr/local/bin/secure-svccheck`  
 **Purpose:** Verifies if a systemd service is active and shows its status header.
 
 **What to Expect:**  
 - `[OK] <service> UP` + status lines, or `[ERROR]` and exit code 1.  
 - Log: `~/Desktop/LOG_FILES/secure-svccheck.log`.
+
+**Script code (save as `/usr/local/bin/secure-svccheck`):**
+
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+    IFS=$'\n\t'
+    
+    readonly SCRIPT_NAME="secure-svccheck"
+    readonly LOG_DIR="${HOME}/Desktop/LOG_FILES"
+    readonly LOG_FILE="${LOG_DIR}/${SCRIPT_NAME}.log"
+    mkdir -p "$LOG_DIR"
+    
+    logmsg() { echo "[$(date '+%F %T')] $*" | tee -a "$LOG_FILE"; }
+    
+    readonly svc="${1:-}"
+    if [[ -z "$svc" ]]; then
+        logmsg "[FATAL] Kullanım: $0 <servis-adı>"
+        exit 1
+    fi
+    
+    if systemctl is-active --quiet "$svc"; then
+        logmsg "[OK] $svc UP"
+        systemctl status "$svc" | head -n 3 | tee -a "$LOG_FILE"
+    else
+        logmsg "[ERROR] $svc DOWN"
+        exit 1
+    fi
 
 **Usage:**  
 
@@ -156,12 +237,48 @@ Each alias points to a hardened script in `/usr/local/bin`. The script name is g
 #### sysclean
 
 **Alias:** <code>alias sysclean='secure-cleancache'</code>  
-**Script:** `/usr/local/bin/secure-cleancache`  
+**Script location:** `/usr/local/bin/secure-cleancache`  
 **Purpose:** Cleans DNF caches and trims journal logs older than 7 days under an atomic lock.
 
 **What to Expect:**  
 - No repeated cleaning waste.  
 - Log: `~/Desktop/LOG_FILES/secure-cleancache.log`.
+
+**Script code (save as `/usr/local/bin/secure-cleancache`):**
+
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+    IFS=$'\n\t'
+    
+    readonly SCRIPT_NAME="secure-cleancache"
+    readonly LOG_DIR="${HOME}/Desktop/LOG_FILES"
+    readonly LOG_FILE="${LOG_DIR}/${SCRIPT_NAME}.log"
+    mkdir -p "$LOG_DIR"
+    
+    logmsg() { echo "[$(date '+%F %T')] $*" | tee -a "$LOG_FILE"; }
+    
+    readonly LOCK_DIR="${HOME}/.local/run/locks"
+    readonly LOCK_FILE="${LOCK_DIR}/cleancache.lock"
+    
+    mkdir -p "$LOCK_DIR"
+    exec 8> "$LOCK_FILE"
+    if ! flock -n 8; then
+        logmsg "[WARN] Temizlik zaten çalışıyor. PID: $(cat "$LOCK_FILE" 2>/dev/null || echo bilinmiyor)"
+        exit 1
+    fi
+    echo $$ > "$LOCK_FILE"
+    
+    cleanup() {
+        flock -u 8 2>/dev/null || true
+        rm -f "$LOCK_FILE"
+        logmsg "İşlem sonlandı."
+    }
+    trap cleanup EXIT INT TERM
+    
+    logmsg "DNF önbellek ve journal temizliği başladı."
+    sudo dnf clean all >/dev/null
+    sudo journalctl --vacuum-time=7d >/dev/null
+    logmsg "Temizlik tamamlandı."
 
 **Usage:**  
 
@@ -172,13 +289,31 @@ Each alias points to a hardened script in `/usr/local/bin`. The script name is g
 #### netif
 
 **Alias:** <code>alias netif='secure-netif'</code>  
-**Script:** `/usr/local/bin/secure-netif`  
+**Script location:** `/usr/local/bin/secure-netif`  
 **Purpose:** Lists all interfaces with IPv4 addresses, using `jq` for reliable parsing.
 
 **What to Expect:**  
 - Table: `Interface: eth0      IPv4: 192.168.1.10`.  
 - Requires `jq`; the script exits with `[FATAL]` if missing.  
 - Log: `~/Desktop/LOG_FILES/secure-netif.log`.
+
+**Script code (save as `/usr/local/bin/secure-netif`):**
+
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+    IFS=$'\n\t'
+    
+    readonly SCRIPT_NAME="secure-netif"
+    readonly LOG_DIR="${HOME}/Desktop/LOG_FILES"
+    readonly LOG_FILE="${LOG_DIR}/${SCRIPT_NAME}.log"
+    mkdir -p "$LOG_DIR"
+    
+    logmsg() { echo "[$(date '+%F %T')] $*" | tee -a "$LOG_FILE"; }
+    
+    command -v jq >/dev/null 2>&1 || { logmsg "[FATAL] 'jq' kurulu değil."; exit 1; }
+    
+    logmsg "Ağ arayüzleri listeleniyor."
+    ip -json addr show | jq -r '.[].ifname + " " + (.[].addr_info[]? | select(.family=="inet") | .local)' | awk 'NF==2 {printf "Interface: %-10s IPv4: %s\n", $1, $2}' | tee -a "$LOG_FILE"
 
 **Usage:**  
 
@@ -192,12 +327,56 @@ Each alias points to a hardened script in `/usr/local/bin`. The script name is g
 - <code>alias usb-ac='secure-usbctl on'</code>  
 - <code>alias usb-kapat='secure-usbctl off'</code>  
 
-**Script:** `/usr/local/bin/secure-usbctl`  
+**Script location:** `/usr/local/bin/secure-usbctl`  
 **Purpose:** Loads (`on`) or unloads (`off`) the `usb-storage` and `uas` kernel modules.
 
 **What to Expect:**  
 - Before turning off, lists mounted USB devices and asks for confirmation.  
 - Log: `~/Desktop/LOG_FILES/secure-usbctl.log`.
+
+**Script code (save as `/usr/local/bin/secure-usbctl`):**
+
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+    IFS=$'\n\t'
+    
+    readonly SCRIPT_NAME="secure-usbctl"
+    readonly LOG_DIR="${HOME}/Desktop/LOG_FILES"
+    readonly LOG_FILE="${LOG_DIR}/${SCRIPT_NAME}.log"
+    mkdir -p "$LOG_DIR"
+    
+    logmsg() { echo "[$(date '+%F %T')] $*" | tee -a "$LOG_FILE"; }
+    
+    readonly ACTION="${1:-}"
+    readonly MODULES=("usb-storage" "uas")
+    
+    [[ "$ACTION" == "on" || "$ACTION" == "off" ]] || {
+        logmsg "[FATAL] Kullanım: $0 <on|off>"
+        exit 1
+    }
+    
+    if [[ "$ACTION" == "off" ]]; then
+        logmsg "USB depolama kapatma isteği."
+        if lsblk -o NAME,TYPE,MOUNTPOINT,TRAN | grep -q "usb"; then
+            logmsg "UYARI: Bağlı USB aygıtlar var:"
+            lsblk -o NAME,TYPE,MOUNTPOINT,TRAN | grep "usb" | tee -a "$LOG_FILE"
+            read -r -p "Devam edilsin mi? (yes/no): " ONAY
+            if [[ ! "$ONAY" =~ ^(yes|y|Y)$ ]]; then
+                logmsg "İşlem iptal edildi."
+                exit 0
+            fi
+        fi
+        for mod in "${MODULES[@]}"; do
+            sudo modprobe -r "$mod" 2>/dev/null && logmsg "$mod kaldırıldı" || logmsg "$mod kullanımda olabilir"
+        done
+        logmsg "USB depolama kilitlendi."
+    else
+        logmsg "USB depolama açılıyor."
+        for mod in "${MODULES[@]}"; do
+            sudo modprobe "$mod" 2>/dev/null && logmsg "$mod yüklendi" || logmsg "$mod zaten yüklü"
+        done
+        logmsg "USB depolama erişime açıldı."
+    fi
 
 **Usage:**  
 
@@ -209,13 +388,49 @@ Each alias points to a hardened script in `/usr/local/bin`. The script name is g
 #### secure-wipe
 
 **Alias:** <code>alias secure-wipe='secure-wipe'</code>  
-**Script:** `/usr/local/bin/secure-wipe`  
+**Script location:** `/usr/local/bin/secure-wipe`  
 **Purpose:** Cryptographically shreds a file (`shred -u -z -n 3`), with an SSD warning.
 
 **What to Expect:**  
 - You must confirm the operation.  
 - Due to SSD wear levelling, full eradication is not guaranteed; the warning is displayed.  
 - Log: `~/Desktop/LOG_FILES/secure-wipe.log`.
+
+**Script code (save as `/usr/local/bin/secure-wipe`):**
+
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+    IFS=$'\n\t'
+    
+    readonly SCRIPT_NAME="secure-wipe"
+    readonly LOG_DIR="${HOME}/Desktop/LOG_FILES"
+    readonly LOG_FILE="${LOG_DIR}/${SCRIPT_NAME}.log"
+    mkdir -p "$LOG_DIR"
+    
+    logmsg() { echo "[$(date '+%F %T')] $*" | tee -a "$LOG_FILE"; }
+    
+    readonly TARGET="${1:-}"
+    if [[ -z "$TARGET" ]]; then
+        logmsg "[HATA] Dosya belirtilmedi."
+        exit 1
+    fi
+    if [[ ! -f "$TARGET" ]]; then
+        logmsg "[HATA] '$TARGET' düzenli dosya değil."
+        exit 1
+    fi
+    
+    cat <<EOF | tee -a "$LOG_FILE"
+    ⚠️  SSD UYARISI: Shred, SSD'lerde aşınma dengeleme nedeniyle tüm kopyaları yok edemeyebilir.
+    EOF
+    
+    read -r -p "Devam edilsin mi? (yes/no): " ONAY
+    if [[ ! "$ONAY" =~ ^(yes|y|Y)$ ]]; then
+        logmsg "İşlem iptal edildi."
+        exit 0
+    fi
+    
+    logmsg "Dosya imha ediliyor: $TARGET"
+    shred -u -z -n 3 "$TARGET" && logmsg "İmha başarılı: $TARGET"
 
 **Usage:**  
 
@@ -230,12 +445,50 @@ Each alias points to a hardened script in `/usr/local/bin`. The script name is g
 - <code>alias kilit-ac='sys-chattr unlock'</code>  
 - <code>alias kilit-kontrol='sys-chattr check'</code>  
 
-**Script:** `/usr/local/bin/sys-chattr`  
+**Script location:** `/usr/local/bin/sys-chattr`  
 **Purpose:** Uses `chattr +i` to make files immutable, `chattr -i` to unlock, and `lsattr` to inspect.
 
 **What to Expect:**  
 - Immutable files cannot be modified even by root.  
 - Log: `~/Desktop/LOG_FILES/sys-chattr.log`.
+
+**Script code (save as `/usr/local/bin/sys-chattr`):**
+
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+    IFS=$'\n\t'
+    
+    readonly SCRIPT_NAME="sys-chattr"
+    readonly LOG_DIR="${HOME}/Desktop/LOG_FILES"
+    readonly LOG_FILE="${LOG_DIR}/${SCRIPT_NAME}.log"
+    mkdir -p "$LOG_DIR"
+    
+    logmsg() { echo "[$(date '+%F %T')] $*" | tee -a "$LOG_FILE"; }
+    
+    readonly ACTION="${1:-}"
+    shift || true
+    readonly FILES=("$@")
+    
+    [[ -z "$ACTION" || ${#FILES[@]} -eq 0 ]] && {
+        logmsg "Kullanım: $0 <lock|unlock|check> <dosya...>"
+        exit 1
+    }
+    
+    case "$ACTION" in
+        lock)
+            for f in "${FILES[@]}"; do
+                sudo chattr +i "$f" && logmsg "[LOCKED] $f"
+            done ;;
+        unlock)
+            for f in "${FILES[@]}"; do
+                sudo chattr -i "$f" && logmsg "[UNLOCKED] $f"
+            done ;;
+        check)
+            for f in "${FILES[@]}"; do
+                lsattr "$f" 2>/dev/null | tee -a "$LOG_FILE"
+            done ;;
+        *) logmsg "Geçersiz eylem: $ACTION"; exit 1 ;;
+    esac
 
 **Usage:**  
 
@@ -248,13 +501,46 @@ Each alias points to a hardened script in `/usr/local/bin`. The script name is g
 #### rk-denetim
 
 **Alias:** <code>alias rk-denetim='secure-rkhunter'</code>  
-**Script:** `/usr/local/bin/secure-rkhunter`  
+**Script location:** `/usr/local/bin/secure-rkhunter`  
 **Purpose:** Updates rkhunter signatures, runs a check, and after manual review offers to update the file‑properties baseline.
 
 **What to Expect:**  
 - Scan results are displayed and logged.  
 - **Never** accept the baseline if anomalies exist.  
 - Log: `~/Desktop/LOG_FILES/secure-rkhunter.log`.
+
+**Script code (save as `/usr/local/bin/secure-rkhunter`):**
+
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+    IFS=$'\n\t'
+    
+    readonly SCRIPT_NAME="secure-rkhunter"
+    readonly LOG_DIR="${HOME}/Desktop/LOG_FILES"
+    readonly LOG_FILE="${LOG_DIR}/${SCRIPT_NAME}.log"
+    mkdir -p "$LOG_DIR"
+    
+    logmsg() { echo "[$(date '+%F %T')] $*" | tee -a "$LOG_FILE"; }
+    
+    command -v rkhunter >/dev/null 2>&1 || { logmsg "[FATAL] rkhunter kurulu değil."; exit 1; }
+    
+    logmsg "Rkhunter imza güncelleme başlıyor."
+    sudo rkhunter --update | tee -a "$LOG_FILE"
+    
+    logmsg "Sistem taraması başlıyor."
+    sudo rkhunter --check --skip-keypress --rwo | tee -a "$LOG_FILE" || true
+    
+    cat <<EOF | tee -a "$LOG_FILE"
+    ⚠️  Uyarıları inceleyin. Yalnızca meşru değişiklikler varsa baseline güncellenmelidir.
+    EOF
+    
+    read -r -p "Baseline mühürlensin mi? (yes/no): " ONAY
+    if [[ "$ONAY" =~ ^(yes|y|Y|YES)$ ]]; then
+        sudo rkhunter --propupd | tee -a "$LOG_FILE"
+        logmsg "Baseline mühürlendi."
+    else
+        logmsg "Baseline güncellemesi atlandı."
+    fi
 
 **Usage:**  
 
@@ -265,12 +551,28 @@ Each alias points to a hardened script in `/usr/local/bin`. The script name is g
 #### net-audit
 
 **Alias:** <code>alias net-audit='secure-netaudit'</code>  
-**Script:** `/usr/local/bin/secure-netaudit`  
+**Script location:** `/usr/local/bin/secure-netaudit`  
 **Purpose:** Lists all listening TCP/UDP sockets with process info.
 
 **What to Expect:**  
 - Equivalent to `ss -tulpn | grep LISTEN` but logged.  
 - Log: `~/Desktop/LOG_FILES/secure-netaudit.log`.
+
+**Script code (save as `/usr/local/bin/secure-netaudit`):**
+
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+    IFS=$'\n\t'
+    
+    readonly SCRIPT_NAME="secure-netaudit"
+    readonly LOG_DIR="${HOME}/Desktop/LOG_FILES"
+    readonly LOG_FILE="${LOG_DIR}/${SCRIPT_NAME}.log"
+    mkdir -p "$LOG_DIR"
+    
+    logmsg() { echo "[$(date '+%F %T')] $*" | tee -a "$LOG_FILE"; }
+    
+    logmsg "Açık portlar taranıyor."
+    sudo ss -tulpn | grep LISTEN | tee -a "$LOG_FILE"
 
 **Usage:**  
 
@@ -281,13 +583,36 @@ Each alias points to a hardened script in `/usr/local/bin`. The script name is g
 #### ram-radar
 
 **Alias:** <code>alias ram-radar='sys-ramradar'</code>  
-**Script:** `/usr/local/bin/sys-ramradar`  
+**Script location:** `/usr/local/bin/sys-ramradar`  
 **Purpose:** Displays top 10 processes by RSS memory, and total RAM consumption.
 
 **What to Expect:**  
 - Sorted descending by memory usage.  
 - Total shown in GB.  
 - Log: `~/Desktop/LOG_FILES/sys-ramradar.log`.
+
+**Script code (save as `/usr/local/bin/sys-ramradar`):**
+
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+    IFS=$'\n\t'
+    
+    readonly SCRIPT_NAME="sys-ramradar"
+    readonly LOG_DIR="${HOME}/Desktop/LOG_FILES"
+    readonly LOG_FILE="${LOG_DIR}/${SCRIPT_NAME}.log"
+    mkdir -p "$LOG_DIR"
+    
+    logmsg() { echo "[$(date '+%F %T')] $*" | tee -a "$LOG_FILE"; }
+    
+    logmsg "RAM kullanım raporu oluşturuluyor."
+    echo "📊 En çok RAM tüketen ilk 10 süreç:" | tee -a "$LOG_FILE"
+    printf "%-8s %-20s %s\n" "RSS(KB)" "COMMAND" "PID" | tee -a "$LOG_FILE"
+    ps axo rss,comm,pid --sort=-rss --no-headers | head -n 10 | while read -r rss comm pid; do
+        printf "%-8s %-20s %s\n" "$rss" "$comm" "$pid" | tee -a "$LOG_FILE"
+    done
+    total_kb=$(ps axo rss --no-headers | awk '{sum+=$1} END {print sum}')
+    total_gb=$(awk "BEGIN {printf \"%.2f\", $total_kb/1024/1024}")
+    echo "Toplam RAM Tüketimi: ${total_gb} GB" | tee -a "$LOG_FILE"
 
 **Usage:**  
 
@@ -298,12 +623,28 @@ Each alias points to a hardened script in `/usr/local/bin`. The script name is g
 #### kernel-radar
 
 **Alias:** <code>alias kernel-radar='sys-kernelradar'</code>  
-**Script:** `/usr/local/bin/sys-kernelradar`  
+**Script location:** `/usr/local/bin/sys-kernelradar`  
 **Purpose:** Searches `dmesg` for critical errors, warnings, segfaults, and USB issues.
 
 **What to Expect:**  
 - If no matches, prints `[OK] No critical records found.`  
 - Log: `~/Desktop/LOG_FILES/sys-kernelradar.log`.
+
+**Script code (save as `/usr/local/bin/sys-kernelradar`):**
+
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+    IFS=$'\n\t'
+    
+    readonly SCRIPT_NAME="sys-kernelradar"
+    readonly LOG_DIR="${HOME}/Desktop/LOG_FILES"
+    readonly LOG_FILE="${LOG_DIR}/${SCRIPT_NAME}.log"
+    mkdir -p "$LOG_DIR"
+    
+    logmsg() { echo "[$(date '+%F %T')] $*" | tee -a "$LOG_FILE"; }
+    
+    logmsg "Kernel hata/uyarı taraması başladı."
+    sudo dmesg -T | grep --color=always -iE "error|warn|fail|killed|segfault|usb" | tee -a "$LOG_FILE" || logmsg "Kritik kayıt bulunamadı."
 
 **Usage:**  
 
@@ -330,13 +671,35 @@ Each alias points to a hardened script in `/usr/local/bin`. The script name is g
 #### termal
 
 **Alias:** <code>alias termal='sys-thermal'</code>  
-**Script:** `/usr/local/bin/sys-thermal`  
+**Script location:** `/usr/local/bin/sys-thermal`  
 **Purpose:** Reads hardware temperatures via `lm_sensors`.
 
 **What to Expect:**  
 - Requires `lm_sensors`; install with `dnf` if missing.  
 - On Surface Pro 9, watch for sustained temps above 85°C.  
 - Log: `~/Desktop/LOG_FILES/sys-thermal.log`.
+
+**Script code (save as `/usr/local/bin/sys-thermal`):**
+
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+    IFS=$'\n\t'
+    
+    readonly SCRIPT_NAME="sys-thermal"
+    readonly LOG_DIR="${HOME}/Desktop/LOG_FILES"
+    readonly LOG_FILE="${LOG_DIR}/${SCRIPT_NAME}.log"
+    mkdir -p "$LOG_DIR"
+    
+    logmsg() { echo "[$(date '+%F %T')] $*" | tee -a "$LOG_FILE"; }
+    
+    if ! command -v sensors >/dev/null 2>&1; then
+        logmsg "[FATAL] 'lm_sensors' paketi kurulu değil. 'sudo dnf install lm_sensors' ile kurun."
+        exit 1
+    fi
+    
+    logmsg "Sıcaklık sensörleri okunuyor."
+    echo "🌡️ SICAKLIK RAPORU" | tee -a "$LOG_FILE"
+    sensors | tee -a "$LOG_FILE"
 
 **Usage:**  
 
@@ -347,12 +710,33 @@ Each alias points to a hardened script in `/usr/local/bin`. The script name is g
 #### needs-restart
 
 **Alias:** <code>alias needs-restart='secure-needsrestart'</code>  
-**Script:** `/usr/local/bin/secure-needsrestart`  
+**Script location:** `/usr/local/bin/secure-needsrestart`  
 **Purpose:** Runs `dnf needs-restarting -r` to list services still using old libraries after updates.
 
 **What to Expect:**  
 - Empty output means everything is current.  
 - Log: `~/Desktop/LOG_FILES/secure-needsrestart.log`.
+
+**Script code (save as `/usr/local/bin/secure-needsrestart`):**
+
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+    IFS=$'\n\t'
+    
+    readonly SCRIPT_NAME="secure-needsrestart"
+    readonly LOG_DIR="${HOME}/Desktop/LOG_FILES"
+    readonly LOG_FILE="${LOG_DIR}/${SCRIPT_NAME}.log"
+    mkdir -p "$LOG_DIR"
+    
+    logmsg() { echo "[$(date '+%F %T')] $*" | tee -a "$LOG_FILE"; }
+    
+    if ! command -v dnf >/dev/null 2>&1; then
+        logmsg "[FATAL] 'dnf' bulunamadı."
+        exit 1
+    fi
+    
+    logmsg "Yeniden başlatma gerektiren servisler kontrol ediliyor."
+    sudo dnf needs-restarting -r | tee -a "$LOG_FILE" || logmsg "Tüm servisler güncel."
 
 **Usage:**  
 
@@ -363,13 +747,55 @@ Each alias points to a hardened script in `/usr/local/bin`. The script name is g
 #### aide-denetim
 
 **Alias:** <code>alias aide-denetim='secure-aide'</code>  
-**Script:** `/usr/local/bin/secure-aide`  
+**Script location:** `/usr/local/bin/secure-aide`  
 **Purpose:** Runs AIDE file‑integrity check; initialises a baseline if none exists, then offers manual baseline update.
 
 **What to Expect:**  
 - Changes are listed; you must inspect before accepting.  
 - Tampered baselines hide future intrusions – **always review**.  
 - Log: `~/Desktop/LOG_FILES/secure-aide.log`.
+
+**Script code (save as `/usr/local/bin/secure-aide`):**
+
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+    IFS=$'\n\t'
+    
+    readonly SCRIPT_NAME="secure-aide"
+    readonly LOG_DIR="${HOME}/Desktop/LOG_FILES"
+    readonly LOG_FILE="${LOG_DIR}/${SCRIPT_NAME}.log"
+    mkdir -p "$LOG_DIR"
+    
+    logmsg() { echo "[$(date '+%F %T')] $*" | tee -a "$LOG_FILE"; }
+    
+    if ! command -v aide >/dev/null 2>&1; then
+        logmsg "[FATAL] 'aide' kurulu değil. 'sudo dnf install aide' ile kurun."
+        exit 1
+    fi
+    
+    if [[ ! -f /var/lib/aide/aide.db.gz ]]; then
+        logmsg "AIDE veritabanı bulunamadı. İlk baseline oluşturuluyor."
+        sudo aide --init | tee -a "$LOG_FILE"
+        sudo mv /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
+        logmsg "Baseline veritabanı oluşturuldu."
+        exit 0
+    fi
+    
+    logmsg "AIDE bütünlük kontrolü başlıyor."
+    sudo aide --check | tee -a "$LOG_FILE" || true
+    
+    cat <<EOF | tee -a "$LOG_FILE"
+    ⚠️  Yukarıdaki değişiklikleri inceleyin. Meşru sistem güncellemeleri ise baseline güncellenebilir.
+    EOF
+    
+    read -r -p "Baseline güncellensin mi? (yes/no): " ONAY
+    if [[ "$ONAY" =~ ^(yes|y|Y|YES)$ ]]; then
+        sudo aide --update | tee -a "$LOG_FILE"
+        sudo mv /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
+        logmsg "Baseline başarıyla güncellendi."
+    else
+        logmsg "Baseline güncellemesi atlandı."
+    fi
 
 **Usage:**  
 
@@ -380,13 +806,48 @@ Each alias points to a hardened script in `/usr/local/bin`. The script name is g
 #### perm-check
 
 **Alias:** <code>alias perm-check='secure-permcheck'</code>  
-**Script:** `/usr/local/bin/secure-permcheck`  
+**Script location:** `/usr/local/bin/secure-permcheck`  
 **Purpose:** Verifies permissions of `$HOME`, `~/.ssh`, `~/.bashrc`, and `~/.bash_profile`.
 
 **What to Expect:**  
 - Expected modes: home/ssh `700`, bash files `644`.  
 - Any deviation flagged as `[ZAYIF]`.  
 - Log: `~/Desktop/LOG_FILES/secure-permcheck.log`.
+
+**Script code (save as `/usr/local/bin/secure-permcheck`):**
+
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+    IFS=$'\n\t'
+    
+    readonly SCRIPT_NAME="secure-permcheck"
+    readonly LOG_DIR="${HOME}/Desktop/LOG_FILES"
+    readonly LOG_FILE="${LOG_DIR}/${SCRIPT_NAME}.log"
+    mkdir -p "$LOG_DIR"
+    
+    logmsg() { echo "[$(date '+%F %T')] $*" | tee -a "$LOG_FILE"; }
+    
+    logmsg "Kullanıcı ev dizini ve kritik dosya izinleri denetleniyor..."
+    
+    check_perm() {
+        local path="$1" expected="$2" desc="$3"
+        if [[ -e "$path" ]]; then
+            actual=$(stat -c "%a" "$path")
+            if [[ "$actual" != "$expected" ]]; then
+                logmsg "[ZAYIF] $desc ($path) izni $actual, beklenen $expected"
+            else
+                logmsg "[OK] $desc ($path)"
+            fi
+        else
+            logmsg "[BİLGİ] $desc ($path) mevcut değil."
+        fi
+    }
+    
+    check_perm "$HOME" "700" "Home dizini"
+    check_perm "$HOME/.ssh" "700" "~/.ssh dizini"
+    check_perm "$HOME/.bashrc" "644" "~/.bashrc"
+    check_perm "$HOME/.bash_profile" "644" "~/.bash_profile"
+    logmsg "İzin denetimi tamamlandı."
 
 **Usage:**  
 
@@ -397,13 +858,37 @@ Each alias points to a hardened script in `/usr/local/bin`. The script name is g
 #### suid-tarama
 
 **Alias:** <code>alias suid-tarama='sys-suidscan'</code>  
-**Script:** `/usr/local/bin/sys-suidscan`  
+**Script location:** `/usr/local/bin/sys-suidscan`  
 **Purpose:** Lists all SUID/SGID files in critical directories (`/usr`, `/bin`, `/sbin`, `/lib*`, `/opt`).
 
 **What to Expect:**  
 - Scan limited to local filesystems (`-xdev`) to minimise SSD wear.  
 - Any unexpected SUID shell must be investigated.  
 - Log: `~/Desktop/LOG_FILES/sys-suidscan.log`.
+
+**Script code (save as `/usr/local/bin/sys-suidscan`):**
+
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+    IFS=$'\n\t'
+    
+    readonly SCRIPT_NAME="sys-suidscan"
+    readonly LOG_DIR="${HOME}/Desktop/LOG_FILES"
+    readonly LOG_FILE="${LOG_DIR}/${SCRIPT_NAME}.log"
+    mkdir -p "$LOG_DIR"
+    
+    logmsg() { echo "[$(date '+%F %T')] $*" | tee -a "$LOG_FILE"; }
+    
+    readonly SCAN_DIRS=("/usr" "/bin" "/sbin" "/lib" "/lib64" "/opt")
+    
+    logmsg "SUID/SGID dosyaları taranıyor..."
+    echo "🔎 SUID/SGID DOSYA RAPORU" | tee -a "$LOG_FILE"
+    for dir in "${SCAN_DIRS[@]}"; do
+        if [[ -d "$dir" ]]; then
+            find "$dir" -xdev \( -perm -4000 -o -perm -2000 \) -type f -ls 2>/dev/null | tee -a "$LOG_FILE"
+        fi
+    done
+    logmsg "Tarama tamamlandı."
 
 **Usage:**  
 
