@@ -1,146 +1,162 @@
 cat << 'POTATO' > aliases.md
-# Fedora Security & Performance Aliases Suite – Enterprise Hardening Companion
+# Fedora 44 Secure Alias Suite
 
-| **ENGLISH** | **TÜRKÇE** |
-|-------------|-------------|
-| **Project Name:** Fedora Security & Performance Aliases Suite | **Proje Adı:** Fedora Güvenlik & Performans Alias Paketi |
-| **Version:** V1.0 | **Sürüm:** V1.0 |
-| **Core Problem Solved:** Default shell aliases lack atomicity, leave residues, and cannot prevent race conditions or SSD wear. System updates, cache cleaning, and security audits are often performed without logging or rollback capabilities. | **Çözülen Temel Sorun:** Varsayılan shell alias’ları atomiklik sağlamaz, kalıntı bırakır, yarış durumlarını veya SSD aşınmasını engelleyemez. Sistem güncellemeleri, önbellek temizliği ve güvenlik denetimleri çoğu zaman loglama veya geri alma yeteneği olmadan yapılır. |
-| **Applied Solution:** Independent, strictly‑written Bash scripts placed in `/usr/local/bin/` with kernel‑level `flock` locks, `trap` cleanup, idempotent operations, and mandatory logging to `~/Desktop/LOG_FILES/`. Aliases in `~/.bashrc` provide ergonomic access. | **Uygulanan Çözüm:** `/usr/local/bin/` altında bağımsız, katı yazım kurallarına sahip, çekirdek seviyesinde `flock` kilitleri, `trap` temizliği, yinelenebilir işlemler ve `~/Desktop/LOG_FILES/` dizinine zorunlu loglama içeren Bash betikleri. `~/.bashrc`’deki alias’lar ergonomik erişim sağlar. |
-| **Scope:** Surface Pro 9, Fedora 44, single‑user, dual‑boot disabled, Librewolf browser, Docker (not Podman) ready. | **Kapsam:** Surface Pro 9, Fedora 44, tek kullanıcı, çift önyükleme kapalı, Librewolf tarayıcı, Docker (Podman değil) uyumlu. |
-| **Author:** Dr. Ozhan Akdag & Senior Cyber Security Agent (Collaborative design) | **Yazar:** Dr. Ozhan Akdag & Kıdemli Siber Güvenlik Ajanı (İşbirlikçi tasarım) |
-
----
-
-## 1. Introduction / Giriş
-
-| **ENGLISH** | **TÜRKÇE** |
-|-------------|-------------|
-| This suite replaces fragile, one‑liner aliases with enterprise‑grade tools. Every operation is **atomic**, **logged**, **idempotent**, and **thermally aware**. Whether you update the system, audit the firewall, scan for rootkits, or wipe sensitive files, you will have full traceability and zero residue. | Bu paket, kırılgan tek satırlık alias’ları kurumsal düzey araçlarla değiştirir. Her işlem **atomik**, **loglanmış**, **yinelenebilir** ve **ısıl farkındalığa sahiptir**. Sistemi güncelleme, güvenlik duvarını denetleme, rootkit taraması veya hassas dosyaları silme fark etmeksizin tam izlenebilirlik ve sıfır kalıntı elde edersiniz. |
+| **Property** | **Value** |
+|--------------|-----------|
+| **Project Name** | Fedora 44 Secure Alias Suite |
+| **Version** | V1.0 |
+| **Core Problem Solved** | Scattered, non‑atomic alias definitions lacking proper locking, logging, and idempotency; privilege escalation risks via temporary file races; thermal and SSD wear unawareness on Surface Pro 9 hardware. |
+| **Applied Solution** | Strict‑mode, kernel‑level `flock`‑based atomic scripts with unified logging to `~/Desktop/LOG_FILES/`, absolute cleanup traps, baseline poisoning prevention, and hardware‑conscious design. |
+| **Affected File Paths** | `/usr/local/bin/secure-*`, `/usr/local/bin/sys-*`, `~/.bashrc`, `~/Desktop/LOG_FILES/` |
+| **Official GitHub Script Link** | [https://raw.githubusercontent.com/Ozhana/Fedora_Hardening/main/aliases/install.sh](https://raw.githubusercontent.com/Ozhana/Fedora_Hardening/main/aliases/install.sh) |
+| **Verification Commands** | <code>type sysupdate</code>, <code>alias</code>, <code>ls -l /usr/local/bin/secure-*</code>, <code>cat ~/Desktop/LOG_FILES/secure-sysupdate.log</code> |
+| **Author** | Dr. Ozhan Akdag & Senior Cyber Security Agent (Collaborative design) |
 
 ---
 
-## 2. Workspace Preparation / Çalışma Alanı Hazırlığı
+## Introduction / Giriş
 
-| **ENGLISH** | **TÜRKÇE** |
-|-------------|-------------|
-| Before installing the scripts, ensure the log directory exists. This command is idempotent: <code>mkdir -p ~/Desktop/LOG_FILES ~/.local/run/locks</code> | Betikleri kurmadan önce log dizininin var olduğundan emin olun. Bu komut yinelenebilirdir: <code>mkdir -p ~/Desktop/LOG_FILES ~/.local/run/locks</code> |
-| Make sure you have **sudo** privileges. All scripts that modify the system will ask for a password when required. | **sudo** yetkinizin olduğundan emin olun. Sistemi değiştiren tüm betikler gerektiğinde parola soracaktır. |
-
----
-
-## 3. Fetch the Script Package / Betik Paketini İndirme
-
-| **ENGLISH** | **TÜRKÇE** |
-|-------------|-------------|
-| You can obtain the entire collection from the official repository. The `setup.sh` will copy each script to `/usr/local/bin/` and append aliases to your `~/.bashrc`. <br> <code>curl -sSL https://raw.githubusercontent.com/ozhantr/Fedora_Hardening/main/ALIASES/setup.sh -o setup.sh</code> | Tüm koleksiyonu resmi depodan edinebilirsiniz. `setup.sh`, her betiği `/usr/local/bin/` dizinine kopyalayacak ve `~/.bashrc` dosyanıza alias’ları ekleyecektir. <br> <code>curl -sSL https://raw.githubusercontent.com/ozhantr/Fedora_Hardening/main/ALIASES/setup.sh -o setup.sh</code> |
-| **Manual installation** is also possible: place the provided scripts into `/usr/local/bin/` and add the alias block (see Section 5) to your `~/.bashrc`. | **Manuel kurulum** da mümkündür: sağlanan betikleri `/usr/local/bin/` altına yerleştirin ve alias bloğunu (Bkz. Bölüm 5) `~/.bashrc` dosyanıza ekleyin. |
+| ENGLISH | TÜRKÇE |
+|---------|--------|
+| This suite delivers a hardened, production‑grade set of shell aliases and independent scripts for Fedora 44 running on a Surface Pro 9. Every command follows strict error handling, uses atomic file locks to prevent race conditions, writes timestamped logs for forensic traceability, and guards against SSD write amplification and thermal stress. The design adheres to a "zero‑trust" philosophy: no automatic baseline updates, every critical change requires explicit human confirmation. | Bu paket, Surface Pro 9 üzerinde çalışan Fedora 44 için kurumsal düzeyde sertleştirilmiş bir dizi kabuk alias’ı ve bağımsız betik sunar. Her komut katı hata yönetimi uygular, yarış koşullarını önlemek için atomik dosya kilitleri kullanır, adli izlenebilirlik için zaman damgalı loglar yazar ve SSD yazma amplifikasyonu ile termal strese karşı koruma sağlar. Tasarım “sıfır güven” ilkesine bağlıdır: hiçbir temel referans (baseline) güncellemesi otomatik yapılmaz; her kritik değişiklik açık insan onayı gerektirir. |
 
 ---
 
-## 4. Permissions & Execute / Yetkilendirme ve Çalıştırma
+## Workspace Preparation / Çalışma Alanı Hazırlığı
 
-| **ENGLISH** | **TÜRKÇE** |
-|-------------|-------------|
-| <code>chmod 755 setup.sh</code> <br> <code>./setup.sh</code> | <code>chmod 755 setup.sh</code> <br> <code>./setup.sh</code> |
-| After the script finishes, reload your shell environment: <br> <code>source ~/.bashrc</code> | Betik tamamlandıktan sonra kabuk ortamınızı yeniden yükleyin: <br> <code>source ~/.bashrc</code> |
-| All tools are now available as simple aliases (e.g., `sysupdate`, `fw audit`, `sysclean`). | Artık tüm araçlar basit alias’lar (ör. `sysupdate`, `fwaudit`, `sysclean`) olarak kullanılabilir. |
+| ENGLISH | TÜRKÇE |
+|---------|--------|
+| <code>mkdir -p ~/Desktop/LOG_FILES</code><br>Creates the central logging directory on the desktop. All scripts automatically write their logs here. | <code>mkdir -p ~/Desktop/LOG_FILES</code><br>Masaüstünde merkezî log dizinini oluşturur. Tüm betikler loglarını otomatik olarak buraya yazar. |
 
 ---
 
-## 5. Complete Alias Reference / Eksiksiz Alias Referansı
+## Fetch the Installation Script / Kurulum Betiğini İndirme
 
-| **ALIAS / FUNCTION** | **ENGLISH DESCRIPTION** | **TÜRKÇE AÇIKLAMA** |
-|----------------------|-------------------------|---------------------|
-| `rm` | <code>rm -I --preserve-root</code> – prompts before deleting >3 files, forbids root removal | <code>rm -I --preserve-root</code> – 3’ten fazla dosya silmeden önce sorar, kök dizini silmeyi engeller |
-| `cp` | <code>cp -ia</code> – interactive, preserves attributes | <code>cp -ia</code> – etkileşimli, öznitelikleri korur |
-| `mv` | <code>mv -iv</code> – verbose, interactive | <code>mv -iv</code> – ayrıntılı, etkileşimli |
-| `mkdir` | <code>mkdir -pv</code> – creates parents, verbose | <code>mkdir -pv</code> – üst dizinleri oluşturur, ayrıntılı |
-| `chown` | <code>chown --preserve-root</code> – prevents accidental root ownership change | <code>chown --preserve-root</code> – yanlışlıkla kök sahiplik değişimini önler |
-| `ports` | Shows listening TCP/UDP ports with process info | TCP/UDP dinleyen portları süreç bilgisi ile gösterir |
-| `memstat` | Displays RAM usage percentage | RAM kullanım yüzdesini gösterir |
-| `diskstat` | Shows root filesystem usage | Kök dosya sistemi doluluk oranını gösterir |
-| `loadavg` | Prints 1, 5, 15‑minute load averages | 1, 5, 15 dakikalık yük ortalamalarını yazdırır |
-| `zombies` | Lists zombie processes | Zombi süreçleri listeler |
-| `sysupdate` | Locked, logged `dnf upgrade --refresh` | Kilitli, loglu `dnf upgrade --refresh` |
-| `fwaudit` | Firewall rules summary via `firewall-cmd` | `firewall-cmd` ile güvenlik duvarı kurallarını özetler |
-| `svc-check <svc>` | Checks if a service is active | Bir servisin aktif olup olmadığını denetler |
-| `sysclean` | Locked DNF cache clear + vacuum journald (7 days) | Kilitli DNF önbellek temizliği + journald’de 7 günlük vakum |
-| `netif` | Lists IPv4 addresses per interface (requires `jq`) | Arayüz başına IPv4 adreslerini listeler (`jq` gerektirir) |
-| `usb-ac` | Loads USB storage modules (`usb-storage`, `uas`) | USB depolama modüllerini yükler |
-| `usb-kapat` | Unloads USB storage modules, warns if devices mounted | USB depolama modüllerini kaldırır, bağlı aygıt varsa uyarır |
-| `secure-wipe <file>` | Shred (3 passes + zero) with SSD caveat warning | SSD uyarısı ile shred (3 geçiş + sıfırlama) |
-| `kilit-vur <file>` | `chattr +i` – makes file immutable | Dosyayı değişmez yapar (`chattr +i`) |
-| `kilit-ac <file>` | `chattr -i` – makes file mutable | Dosyayı değişebilir yapar (`chattr -i`) |
-| `kilit-kontrol <file>` | `lsattr` – shows file attributes | Dosya özniteliklerini gösterir (`lsattr`) |
-| `rk-denetim` | Updates rkhunter signatures, scans, asks before updating baseline | Rkhunter imzalarını günceller, tarar, baseline güncellemeden önce onay sorar |
-| `net-audit` | Lists all listening sockets (`ss -tulpn \| grep LISTEN`) | Tüm dinleyen soketleri listeler |
-| `ram-radar` | Top 10 processes by RSS with total memory usage | RSS’e göre ilk 10 süreç ve toplam bellek kullanımı |
-| `kernel-radar` | `dmesg` filtered for errors, warnings, kills, segfaults, USB | Hatalar, uyarılar, sonlandırmalar, segfault’lar, USB için filtrelenmiş `dmesg` |
-| `git-rontgen` | Shows `git status -s -b` and diff stats | `git status -s -b` ve diff istatistiklerini gösterir |
-| `termal` | Reads thermal sensors (requires `lm_sensors`) | Isıl sensörleri okur (`lm_sensors` gerektirir) |
-| `needs-restart` | Lists services that require restart after updates | Güncelleme sonrası yeniden başlatma gerektiren servisleri listeler |
-| `aide-denetim` | AIDE file integrity check with baseline update prompt | AIDE dosya bütünlük denetimi, baseline güncelleme onayı ile |
-| `perm-check` | Checks permissions of `~`, `~/.ssh`, `~/.bashrc`, `~/.bash_profile` | Ev dizini ve kritik dosyaların izinlerini denetler |
-| `suid-tarama` | Searches SUID/SGID binaries in key system directories | Ana sistem dizinlerinde SUID/SGID ikili dosyalarını arar |
-| `data-sandbox()` | Creates a Python virtual environment and activates it | Python sanal ortamı oluşturur ve etkinleştirir |
+| ENGLISH | TÜRKÇE |
+|---------|--------|
+| <code>curl -fsSL https://raw.githubusercontent.com/Ozhana/Fedora_Hardening/main/aliases/install.sh -o /tmp/secure-aliases-install.sh</code><br>Downloads the master installer that creates all `/usr/local/bin` scripts and appends aliases to `~/.bashrc`. | <code>curl -fsSL https://raw.githubusercontent.com/Ozhana/Fedora_Hardening/main/aliases/install.sh -o /tmp/secure-aliases-install.sh</code><br>Tüm `/usr/local/bin` betiklerini oluşturan ve alias’ları `~/.bashrc` dosyasına ekleyen ana kurulum betiğini indirir. |
 
 ---
 
-## 6. What to Expect – Verification / Ne Beklemeli – Doğrulama
+## Set Permissions & Execute / Yetkilendir ve Çalıştır
 
-| **ENGLISH** | **TÜRKÇE** |
-|-------------|-------------|
-| After installation, run these checks to confirm everything is in place: | Kurulumdan sonra her şeyin yerinde olduğunu doğrulamak için aşağıdakileri çalıştırın: |
-| <code>ls -l /usr/local/bin/secure-* /usr/local/bin/sys-*</code> – all scripts present | <code>ls -l /usr/local/bin/secure-* /usr/local/bin/sys-*</code> – tüm betikler mevcut |
-| <code>grep "alias sysupdate" ~/.bashrc</code> – alias loaded | <code>grep "alias sysupdate" ~/.bashrc</code> – alias yüklenmiş |
-| <code>ls ~/Desktop/LOG_FILES/</code> – log directory exists | <code>ls ~/Desktop/LOG_FILES/</code> – log dizini var |
-| <code>type sysupdate</code> – should point to the script | <code>type sysupdate</code> – betiği göstermeli |
-| Run a sample tool: <code>sysclean</code> – check for lock and log file | Örnek bir araç çalıştırın: <code>sysclean</code> – kilit ve log dosyasını kontrol edin |
+| ENGLISH | TÜRKÇE |
+|---------|--------|
+| <code>chmod 755 /tmp/secure-aliases-install.sh</code><br>Grants execution rights.<br><br><code>bash /tmp/secure-aliases-install.sh</code><br>Runs the installer. After completion, restart your shell or execute <code>source ~/.bashrc</code>. | <code>chmod 755 /tmp/secure-aliases-install.sh</code><br>Çalıştırma hakkı verir.<br><br><code>bash /tmp/secure-aliases-install.sh</code><br>Kurulumu çalıştırır. Tamamlandıktan sonra kabuğu yeniden başlatın veya <code>source ~/.bashrc</code> komutunu verin. |
 
 ---
 
-## 7. Recovery & Rollback / Kurtarma ve Geri Alma
+## Alias & Script Reference / Alias ve Betik Referansı
 
-| **ENGLISH** | **TÜRKÇE** |
-|-------------|-------------|
-| The suite does **not** alter system‑critical files automatically. To revert, simply remove the scripts and the alias block from `~/.bashrc`: | Bu paket sistem kritik dosyalarını otomatik değiştirmez. Geri almak için betikleri ve `~/.bashrc` içindeki alias bloğunu kaldırmanız yeterlidir: |
-| <code>sudo rm -f /usr/local/bin/secure-* /usr/local/bin/sys-*</code> | <code>sudo rm -f /usr/local/bin/secure-* /usr/local/bin/sys-*</code> |
-| <code>sed -i '/# === \[GÜVENLİ TEMEL İŞLEMLER\] ===/,/data-sandbox()/d' ~/.bashrc</code> (adjust pattern as needed) | <code>sed -i '/# === \[GÜVENLİ TEMEL İŞLEMLER\] ===/,/data-sandbox()/d' ~/.bashrc</code> (deseni gerektiği gibi ayarlayın) |
-| Logs remain in `~/Desktop/LOG_FILES/` for forensic review; delete them if no longer needed: <code>rm -rf ~/Desktop/LOG_FILES/</code> | Loglar adli inceleme için `~/Desktop/LOG_FILES/` dizininde kalır; gerekmiyorsa silin: <code>rm -rf ~/Desktop/LOG_FILES/</code> |
+### 1. Safe File Operations – `rm`, `cp`, `mv`, `mkdir`, `chown`
+
+| ENGLISH | TÜRKÇE |
+|---------|--------|
+| **Command:** <code>alias rm='rm -I --preserve-root'</code><br>**Description:** Prompts before deleting more than 3 files or recursive; refuses to delete `/`.<br>**What to Expect:** Interactive confirmation, protection against catastrophic root removal.<br>**Usage:** <code>rm file1 dir/</code> | **Komut:** <code>alias rm='rm -I --preserve-root'</code><br>**Açıklama:** 3’ten fazla dosya veya recursive silmede onay ister; `/` silinmesini reddeder.<br>**Ne Beklemeli:** Etkileşimli onay, felaket kök dizin silinmesine karşı koruma.<br>**Kullanım:** <code>rm dosya1 dizin/</code> |
+| **Command:** <code>alias cp='cp -ia'</code><br>**Description:** Interactive, preserves attributes; asks before overwrite.<br>**What to Expect:** Prompt on overwrite, metadata kept.<br>**Usage:** <code>cp source dest</code> | **Komut:** <code>alias cp='cp -ia'</code><br>**Açıklama:** Etkileşimli, öznitelikleri korur; üzerine yazmadan önce sorar.<br>**Ne Beklemeli:** Üzerine yazma onayı, meta veriler korunur.<br>**Kullanım:** <code>cp kaynak hedef</code> |
+| **Command:** <code>alias mv='mv -iv'</code><br>**Description:** Verbose, interactive move; explains what is being moved.<br>**What to Expect:** Clear output, overwrite safety.<br>**Usage:** <code>mv old new</code> | **Komut:** <code>alias mv='mv -iv'</code><br>**Açıklama:** Ayrıntılı, etkileşimli taşıma; neyin taşındığını açıklar.<br>**Ne Beklemeli:** Net çıktı, üzerine yazma güvenliği.<br>**Kullanım:** <code>mv eski yeni</code> |
+| **Command:** <code>alias mkdir='mkdir -pv'</code><br>**Description:** Creates parent directories, verbose output.<br>**What to Expect:** Full path created automatically, each step shown.<br>**Usage:** <code>mkdir -p a/b/c</code> (alias makes `-p` default) | **Komut:** <code>alias mkdir='mkdir -pv'</code><br>**Açıklama:** Üst dizinleri oluşturur, ayrıntılı çıktı verir.<br>**Ne Beklemeli:** Tam yol otomatik oluşturulur, her adım gösterilir.<br>**Kullanım:** <code>mkdir a/b/c</code> (alias `-p`’yi varsayılan yapar) |
+| **Command:** <code>alias chown='chown --preserve-root'</code><br>**Description:** Refuses to operate on `/` recursively.<br>**What to Expect:** Accidental `chown -R /` blocked.<br>**Usage:** <code>chown user:group file</code> | **Komut:** <code>alias chown='chown --preserve-root'</code><br>**Açıklama:** `/` üzerinde özyineli çalışmayı reddeder.<br>**Ne Beklemeli:** Yanlışlıkla `chown -R /` engellenir.<br>**Kullanım:** <code>chown kullanıcı:grup dosya</code> |
+
+### 2. System Status – `ports`, `memstat`, `diskstat`, `loadavg`, `zombies`
+
+| ENGLISH | TÜRKÇE |
+|---------|--------|
+| **Command:** <code>alias ports='ss -tulpn \| awk ...'</code><br>**Description:** Lists listening TCP/UDP ports with process info.<br>**What to Expect:** Formatted table: protocol, address, process.<br>**Usage:** <code>ports</code> | **Komut:** <code>alias ports='ss -tulpn \| awk ...'</code><br>**Açıklama:** Dinleyen TCP/UDP portlarını süreç bilgisiyle listeler.<br>**Ne Beklemeli:** Biçimli tablo: protokol, adres, süreç.<br>**Kullanım:** <code>ports</code> |
+| **Command:** <code>alias memstat='free -b \| awk ...'</code><br>**Description:** Shows RAM usage as a percentage.<br>**What to Expect:** Single line: “RAM Tüketimi: %XX.XX”.<br>**Usage:** <code>memstat</code> | **Komut:** <code>alias memstat='free -b \| awk ...'</code><br>**Açıklama:** RAM kullanımını yüzde olarak gösterir.<br>**Ne Beklemeli:** Tek satır: “RAM Tüketimi: %XX.XX”.<br>**Kullanım:** <code>memstat</code> |
+| **Command:** <code>alias diskstat='df -B1 / \| awk ...'</code><br>**Description:** Root filesystem usage percentage.<br>**What to Expect:** “Root FS Tüketimi: %XX.XX”.<br>**Usage:** <code>diskstat</code> | **Komut:** <code>alias diskstat='df -B1 / \| awk ...'</code><br>**Açıklama:** Kök dosya sistemi kullanım yüzdesi.<br>**Ne Beklemeli:** “Root FS Tüketimi: %XX.XX”.<br>**Kullanım:** <code>diskstat</code> |
+| **Command:** <code>alias loadavg='cat /proc/loadavg \| awk ...'</code><br>**Description:** 1/5/15 min load averages.<br>**What to Expect:** “Yük (1/5/15dk): 0.15 \| 0.10 \| 0.05”.<br>**Usage:** <code>loadavg</code> | **Komut:** <code>alias loadavg='cat /proc/loadavg \| awk ...'</code><br>**Açıklama:** 1/5/15 dk yük ortalamaları.<br>**Ne Beklemeli:** “Yük (1/5/15dk): 0.15 \| 0.10 \| 0.05”.<br>**Kullanım:** <code>loadavg</code> |
+| **Command:** <code>alias zombies='ps axo stat,ppid,pid,comm \| awk ...'</code><br>**Description:** Lists zombie processes with parent PID.<br>**What to Expect:** Any defunct processes shown; usually empty.<br>**Usage:** <code>zombies</code> | **Komut:** <code>alias zombies='ps axo stat,ppid,pid,comm \| awk ...'</code><br>**Açıklama:** Zombi süreçleri ebeveyn PID ile listeler.<br>**Ne Beklemeli:** Varsa askıdaki süreçler gösterilir; genellikle boş.<br>**Kullanım:** <code>zombies</code> |
+
+### 3. System Update & Maintenance – `sysupdate`, `sysclean`, `needs-restart`
+
+| ENGLISH | TÜRKÇE |
+|---------|--------|
+| **Command:** <code>alias sysupdate='secure-sysupdate'</code><br>**Description:** Atomic, logged system upgrade via `dnf`. Uses `flock` to prevent concurrent runs.<br>**What to Expect:** Lock file in `~/.local/run/locks`, log in `~/Desktop/LOG_FILES/secure-sysupdate.log`. No interference if already running.<br>**Usage:** <code>sysupdate</code> | **Komut:** <code>alias sysupdate='secure-sysupdate'</code><br>**Açıklama:** Atomik, loglu sistem güncellemesi (`dnf`). Eşzamanlı çalışmayı `flock` ile engeller.<br>**Ne Beklemeli:** Kilit dosyası `~/.local/run/locks` altında, log `~/Desktop/LOG_FILES/secure-sysupdate.log`. Zaten çalışıyorsa müdahale etmez.<br>**Kullanım:** <code>sysupdate</code> |
+| **Command:** <code>alias sysclean='secure-cleancache'</code><br>**Description:** Cleans DNF cache and journals older than 7 days, with atomic lock.<br>**What to Expect:** Disk space freed; log written.<br>**Usage:** <code>sysclean</code> | **Komut:** <code>alias sysclean='secure-cleancache'</code><br>**Açıklama:** DNF önbelleğini ve 7 günden eski journal kayıtlarını atomik kilit ile temizler.<br>**Ne Beklemeli:** Disk alanı boşalır; log yazılır.<br>**Kullanım:** <code>sysclean</code> |
+| **Command:** <code>alias needs-restart='secure-needsrestart'</code><br>**Description:** Lists services and processes still using old libraries after an update.<br>**What to Expect:** Output from `dnf needs-restarting -r`; possibly none.<br>**Usage:** <code>needs-restart</code> | **Komut:** <code>alias needs-restart='secure-needsrestart'</code><br>**Açıklama:** Güncelleme sonrası hâlâ eski kütüphaneleri kullanan servis ve süreçleri listeler.<br>**Ne Beklemeli:** `dnf needs-restarting -r` çıktısı; genellikle boş.<br>**Kullanım:** <code>needs-restart</code> |
+
+### 4. Firewall & Network – `fwaudit`, `netif`, `net-audit`, `secure-netaudit`
+
+| ENGLISH | TÜRKÇE |
+|---------|--------|
+| **Command:** <code>alias fwaudit='secure-fwaudit'</code><br>**Description:** Displays active firewalld configuration in a readable format.<br>**What to Expect:** Key‑value pairs of firewall settings.<br>**Usage:** <code>fwaudit</code> | **Komut:** <code>alias fwaudit='secure-fwaudit'</code><br>**Açıklama:** Aktif firewalld yapılandırmasını okunabilir biçimde gösterir.<br>**Ne Beklemeli:** Güvenlik duvarı ayarları anahtar‑değer çiftleri hâlinde.<br>**Kullanım:** <code>fwaudit</code> |
+| **Command:** <code>alias netif='secure-netif'</code><br>**Description:** Lists interfaces and their IPv4 addresses using `jq`.<br>**What to Expect:** Nicely formatted interface: IP pairs.<br>**Usage:** <code>netif</code> | **Komut:** <code>alias netif='secure-netif'</code><br>**Açıklama:** `jq` ile arayüzleri ve IPv4 adreslerini listeler.<br>**Ne Beklemeli:** Düzgün biçimli arayüz: IP çiftleri.<br>**Kullanım:** <code>netif</code> |
+| **Command:** <code>alias net-audit='secure-netaudit'</code><br>**Description:** Shows all listening TCP/UDP sockets (alias calls dedicated script).<br>**What to Expect:** `ss` output filtered for LISTEN, logged.<br>**Usage:** <code>net-audit</code> | **Komut:** <code>alias net-audit='secure-netaudit'</code><br>**Açıklama:** Dinleyen tüm TCP/UDP soketlerini gösterir (özel betiği çağırır).<br>**Ne Beklemeli:** LISTEN durumundaki `ss` çıktısı, loglanır.<br>**Kullanım:** <code>net-audit</code> |
+
+### 5. USB Storage Control – `usb-ac`, `usb-kapat`
+
+| ENGLISH | TÜRKÇE |
+|---------|--------|
+| **Command:** <code>alias usb-ac='secure-usbctl on'</code><br>**Description:** Loads `usb-storage` and `uas` kernel modules to enable USB mass storage.<br>**What to Expect:** Modules inserted; log confirms.<br>**Usage:** <code>usb-ac</code> | **Komut:** <code>alias usb-ac='secure-usbctl on'</code><br>**Açıklama:** USB yığın depolama için `usb-storage` ve `uas` çekirdek modüllerini yükler.<br>**Ne Beklemeli:** Modüller yüklenir; log onaylar.<br>**Kullanım:** <code>usb-ac</code> |
+| **Command:** <code>alias usb-kapat='secure-usbctl off'</code><br>**Description:** Removes USB storage modules after warning if devices are mounted.<br>**What to Expect:** Interactive prompt if USB drives are active; then modules removed.<br>**Usage:** <code>usb-kapat</code> | **Komut:** <code>alias usb-kapat='secure-usbctl off'</code><br>**Açıklama:** Bağlı aygıt varsa uyarı sonrası USB depolama modüllerini kaldırır.<br>**Ne Beklemeli:** Aktif USB sürücü varsa etkileşimli onay; ardından modüller kaldırılır.<br>**Kullanım:** <code>usb-kapat</code> |
+
+### 6. Secure File Wipe – `secure-wipe`
+
+| ENGLISH | TÜRKÇE |
+|---------|--------|
+| **Command:** <code>alias secure-wipe='secure-wipe'</code> (function wrapper)<br>**Description:** Overwrites a file 3 times with zeros, then removes it. Warns about SSD limitations.<br>**What to Expect:** SSD warning, confirmation prompt, then `shred -u -z -n 3`.<br>**Usage:** <code>secure-wipe secret.txt</code> | **Komut:** <code>alias secure-wipe='secure-wipe'</code> (fonksiyon sarmalayıcı)<br>**Açıklama:** Dosyayı 3 kez sıfırlarla üzerine yazar, sonra siler. SSD sınırlamaları hakkında uyarır.<br>**Ne Beklemeli:** SSD uyarısı, onay sorusu, ardından `shred -u -z -n 3`.<br>**Kullanım:** <code>secure-wipe gizli.txt</code> |
+
+### 7. File Immutability – `kilit-vur`, `kilit-ac`, `kilit-kontrol`
+
+| ENGLISH | TÜRKÇE |
+|---------|--------|
+| **Command:** <code>alias kilit-vur='sys-chattr lock'</code><br>**Description:** Makes a file immutable (`chattr +i`). Even root cannot modify or delete it until unlocked.<br>**What to Expect:** File becomes read‑only; locked.<br>**Usage:** <code>kilit-vur /etc/important.conf</code> | **Komut:** <code>alias kilit-vur='sys-chattr lock'</code><br>**Açıklama:** Dosyayı değişmez yapar (`chattr +i`). Kilit açılmadıkça root dahi dosyayı değiştiremez veya silemez.<br>**Ne Beklemeli:** Dosya salt okunur hâle gelir; kilitli.<br>**Kullanım:** <code>kilit-vur /etc/onemli.conf</code> |
+| **Command:** <code>alias kilit-ac='sys-chattr unlock'</code><br>**Description:** Removes immutable flag (`chattr -i`).<br>**What to Expect:** File becomes writable again.<br>**Usage:** <code>kilit-ac /etc/important.conf</code> | **Komut:** <code>alias kilit-ac='sys-chattr unlock'</code><br>**Açıklama:** Değişmezlik bayrağını kaldırır (`chattr -i`).<br>**Ne Beklemeli:** Dosya tekrar yazılabilir olur.<br>**Kullanım:** <code>kilit-ac /etc/onemli.conf</code> |
+| **Command:** <code>alias kilit-kontrol='sys-chattr check'</code><br>**Description:** Shows file attributes (`lsattr`).<br>**What to Expect:** Output like `----i--------e-- file`.<br>**Usage:** <code>kilit-kontrol /etc/important.conf</code> | **Komut:** <code>alias kilit-kontrol='sys-chattr check'</code><br>**Açıklama:** Dosya özniteliklerini gösterir (`lsattr`).<br>**Ne Beklemeli:** `----i--------e-- dosya` benzeri çıktı.<br>**Kullanım:** <code>kilit-kontrol /etc/onemli.conf</code> |
+
+### 8. Rootkit & Integrity – `rk-denetim`, `aide-denetim`, `perm-check`, `suid-tarama`
+
+| ENGLISH | TÜRKÇE |
+|---------|--------|
+| **Command:** <code>alias rk-denetim='secure-rkhunter'</code><br>**Description:** Updates rkhunter signatures, scans system, asks before updating baseline (`--propupd`).<br>**What to Expect:** Scan report; interactive baseline update.<br>**Usage:** <code>rk-denetim</code> | **Komut:** <code>alias rk-denetim='secure-rkhunter'</code><br>**Açıklama:** rkhunter imzalarını günceller, sistemi tarar, referans güncellemesi (`--propupd`) öncesi onay sorar.<br>**Ne Beklemeli:** Tarama raporu; etkileşimli referans güncellemesi.<br>**Kullanım:** <code>rk-denetim</code> |
+| **Command:** <code>alias aide-denetim='secure-aide'</code><br>**Description:** Runs AIDE integrity check; interactive baseline update if necessary.<br>**What to Expect:** File change report; confirmation to update database.<br>**Usage:** <code>aide-denetim</code> | **Komut:** <code>alias aide-denetim='secure-aide'</code><br>**Açıklama:** AIDE bütünlük denetimi yapar; gerekirse etkileşimli referans güncellemesi.<br>**Ne Beklemeli:** Dosya değişiklik raporu; veritabanı güncelleme onayı.<br>**Kullanım:** <code>aide-denetim</code> |
+| **Command:** <code>alias perm-check='secure-permcheck'</code><br>**Description:** Audits permissions of `$HOME`, `~/.ssh`, `~/.bashrc` etc. Warns if they deviate from secure defaults.<br>**What to Expect:** List of OK or ZAYIF (weak) findings.<br>**Usage:** <code>perm-check</code> | **Komut:** <code>alias perm-check='secure-permcheck'</code><br>**Açıklama:** `$HOME`, `~/.ssh`, `~/.bashrc` vb. izinlerini denetler. Güvenli varsayılanlardan sapma varsa uyarır.<br>**Ne Beklemeli:** OK veya ZAYIF bulguları listesi.<br>**Kullanım:** <code>perm-check</code> |
+| **Command:** <code>alias suid-tarama='sys-suidscan'</code><br>**Description:** Scans critical system directories for SUID/SGID binaries (potential privilege escalation paths).<br>**What to Expect:** List of files with setuid/setgid bits.<br>**Usage:** <code>suid-tarama</code> | **Komut:** <code>alias suid-tarama='sys-suidscan'</code><br>**Açıklama:** Kritik sistem dizinlerinde SUID/SGID bit’li dosyaları tarar (yetki yükseltme yolları).<br>**Ne Beklemeli:** SUID/SGID bit’ine sahip dosyaların listesi.<br>**Kullanım:** <code>suid-tarama</code> |
+
+### 9. Telemetry – `ram-radar`, `kernel-radar`, `termal`
+
+| ENGLISH | TÜRKÇE |
+|---------|--------|
+| **Command:** <code>alias ram-radar='sys-ramradar'</code><br>**Description:** Top 10 memory‑consuming processes with total RAM usage.<br>**What to Expect:** Sorted RSS table, total GB used.<br>**Usage:** <code>ram-radar</code> | **Komut:** <code>alias ram-radar='sys-ramradar'</code><br>**Açıklama:** En çok bellek tüketen 10 süreç ve toplam RAM kullanımı.<br>**Ne Beklemeli:** RSS’e göre sıralı tablo, toplam GB kullanımı.<br>**Kullanım:** <code>ram-radar</code> |
+| **Command:** <code>alias kernel-radar='sys-kernelradar'</code><br>**Description:** Scans `dmesg` for errors, warnings, failures, USB events.<br>**What to Expect:** Highlighted kernel messages; may be empty.<br>**Usage:** <code>kernel-radar</code> | **Komut:** <code>alias kernel-radar='sys-kernelradar'</code><br>**Açıklama:** `dmesg` çıktısında hata, uyarı, başarısızlık, USB olaylarını tarar.<br>**Ne Beklemeli:** Renkli çekirdek iletileri; boş olabilir.<br>**Kullanım:** <code>kernel-radar</code> |
+| **Command:** <code>alias termal='sys-thermal'</code><br>**Description:** Displays CPU and system temperatures via `lm_sensors`.<br>**What to Expect:** Current temperature readings; helps monitor Surface Pro 9 thermal budget.<br>**Usage:** <code>termal</code> | **Komut:** <code>alias termal='sys-thermal'</code><br>**Açıklama:** `lm_sensors` ile CPU ve sistem sıcaklıklarını gösterir.<br>**Ne Beklemeli:** Anlık sıcaklık değerleri; Surface Pro 9 termal bütçesini izlemeye yardımcı olur.<br>**Kullanım:** <code>termal</code> |
+
+### 10. Service Check – `svc-check`
+
+| ENGLISH | TÜRKÇE |
+|---------|--------|
+| **Command:** <code>alias svc-check='secure-svccheck'</code><br>**Description:** Checks if a given systemd service is active, shows short status.<br>**What to Expect:** [OK] `<service>` UP or [ERROR] DOWN.<br>**Usage:** <code>svc-check sshd</code> | **Komut:** <code>alias svc-check='secure-svccheck'</code><br>**Açıklama:** Belirtilen systemd servisinin aktif olup olmadığını denetler, kısa durum gösterir.<br>**Ne Beklemeli:** [OK] `<servis>` UP veya [ERROR] DOWN.<br>**Kullanım:** <code>svc-check sshd</code> |
+
+### 11. Git Röntgen – `git-rontgen`
+
+| ENGLISH | TÜRKÇE |
+|---------|--------|
+| **Command:** <code>alias git-rontgen='echo ... && git status -s -b && echo ... && git diff --stat'</code><br>**Description:** Shows short status and diff stat of a Git repository.<br>**What to Expect:** Branch info, changed files, and line statistics.<br>**Usage:** <code>git-rontgen</code> | **Komut:** <code>alias git-rontgen='echo ... && git status -s -b && echo ... && git diff --stat'</code><br>**Açıklama:** Git deposunun kısa durumunu ve diff istatistiğini gösterir.<br>**Ne Beklemeli:** Dal bilgisi, değişen dosyalar ve satır istatistikleri.<br>**Kullanım:** <code>git-rontgen</code> |
+
+### 12. Python Sandbox – `data-sandbox`
+
+| ENGLISH | TÜRKÇE |
+|---------|--------|
+| **Command:** <code>data-sandbox</code> (shell function)<br>**Description:** Creates an isolated Python virtual environment in the current directory and activates it.<br>**What to Expect:** New `venv/` folder, prompt changes to show `(venv)`.<br>**Usage:** <code>data-sandbox</code> | **Komut:** <code>data-sandbox</code> (kabuk fonksiyonu)<br>**Açıklama:** Bulunulan dizinde yalıtılmış bir Python sanal ortamı oluşturur ve etkinleştirir.<br>**Ne Beklemeli:** Yeni `venv/` dizini, komut istemi `(venv)` olarak değişir.<br>**Kullanım:** <code>data-sandbox</code> |
 
 ---
 
-## 8. Usage Guide for Beginners / Yeni Başlayanlar İçin Kullanım Kılavuzu
+## Logging & Forensics / Loglama ve Adli Bilişim
 
-| **ENGLISH** | **TÜRKÇE** |
-|-------------|-------------|
-| 1. After every login, your aliases are active. Open a terminal and type the alias name (e.g., `diskstat`). | 1. Her oturum açışınızda alias’larınız aktiftir. Bir terminal açın ve alias adını yazın (ör. `diskstat`). |
-| 2. Commands that modify the system will ask for your password (sudo). | 2. Sistemi değiştiren komutlar parolanızı soracaktır (sudo). |
-| 3. To update your system safely: `sysupdate`. The lock prevents double‑runs. | 3. Sisteminizi güvenle güncellemek için: `sysupdate`. Kilit, çift çalıştırmayı engeller. |
-| 4. To check firewall: `fwaudit`. No password needed. | 4. Güvenlik duvarını denetlemek için: `fwaudit`. Parola gerektirmez. |
-| 5. All actions are logged in `~/Desktop/LOG_FILES/`. Open any `.log` file to see timestamps and results. | 5. Tüm eylemler `~/Desktop/LOG_FILES/` içinde loglanır. Zaman damgalarını ve sonuçları görmek için herhangi bir `.log` dosyasını açın. |
-| 6. If a tool reports “kilitli” (locked), wait or remove the stale lock file from `~/.local/run/locks/`. | 6. Bir araç “kilitli” bildirirse bekleyin veya `~/.local/run/locks/` altındaki eski kilit dosyasını elle silin. |
-| 7. For sensitive file deletion, `secure-wipe` warns about SSD limitations before shredding. | 7. Hassas dosya silme için `secure-wipe`, shred öncesi SSD sınırlamaları hakkında uyarır. |
+| ENGLISH | TÜRKÇE |
+|---------|--------|
+| All scripts write timestamped logs to `~/Desktop/LOG_FILES/<script_name>.log`. The directory is created automatically. Logs are append‑only; they never overwrite previous entries. This allows full audit trail of every action taken on the system. | Tüm betikler, zaman damgalı logları `~/Desktop/LOG_FILES/<betik_adı>.log` dosyasına yazar. Dizin otomatik oluşturulur. Loglar yalnızca ekleme yapar; önceki kayıtları asla silmez. Bu sayede sistem üzerinde yapılan her eylemin tam denetim izi tutulur. |
 
 ---
 
-## 9. Technical Hardening Matrix / Teknik Sıkılaştırma Matrisi
+## Important Notes / Önemli Notlar
 
-| **Hardening Dimension** | **Implementation Detail** | **Sıkılaştırma Boyutu** | **Uygulama Detayı** |
-|-------------------------|---------------------------|-------------------------|---------------------|
-| **Strict Mode** | Every script enforces `set -Eeuo pipefail`, `IFS=$'\n\t'` to trap errors and prevent word splitting. | **Katı Mod** | Her betik hataları yakalamak ve kelime bölünmesini önlemek için `set -Eeuo pipefail`, `IFS=$'\n\t'` dayatır. |
-| **Atomic Locking** | Kernel‑backed `flock` on a per‑tool lock file under `~/.local/run/locks/`, PID recorded for stale lock detection. | **Atomik Kilitleme** | Araç başına `~/.local/run/locks/` altında çekirdek destekli `flock`, bayat kilit tespiti için PID kaydedilir. |
-| **Trap & Cleanup** | `trap cleanup EXIT INT TERM` guarantees lock release and temp file deletion even on Ctrl+C. | **Trap ve Temizlik** | `trap cleanup EXIT INT TERM`, Ctrl+C yapılsa dahi kilit salınımı ve geçici dosya silinmesini garantiler. |
-| **Idempotence** | All scripts are safe to run 1000×; they check current state (e.g., module loaded, cache empty) before acting. | **Yinelenebilirlik** | Tüm betikler 1000 kez çalıştırılsa bile güvenlidir; işlem öncesi mevcut durumu kontrol eder (örn. modül yüklü mü, önbellek boş mu). |
-| **Baseline Poisoning Prevention** | `rkhunter --propupd` and `aide --update` require explicit interactive confirmation. | **Temel Hattı Zehirlenmesi Engeli** | `rkhunter --propupd` ve `aide --update` açık etkileşimli onay gerektirir. |
-| **Thermal Awareness** | `sys-thermal` reads hardware sensors; no script runs prolonged I/O loops that would overheat the Surface Pro 9. | **Isıl Farkındalık** | `sys-thermal` donanım sensörlerini okur; hiçbir betik Surface Pro 9’u aşırı ısıtacak uzun I/O döngüleri çalıştırmaz. |
-| **SSD Wear Protection** | Wipe script warns about SSD FTL; `sys-suidscan` limits `find` to essential partitions (`/usr`, `/bin`, …), not full disk. | **SSD Aşınma Koruması** | Silme betiği SSD FTL hakkında uyarır; `sys-suidscan`, `find` taramasını tüm disk yerine temel bölümlerle sınırlar. |
-| **Privilege Escalation Surface Reduction** | `perm-check` audits home directory permissions; `suid-tarama` lists SUID/SGID binaries. | **Yetki Yükseltme Yüzeyini Azaltma** | `perm-check` ev dizini izinlerini denetler; `suid-tarama` SUID/SGID ikili dosyalarını listeler. |
-| **Log Integrity** | Every tool appends structured, timestamped logs to `~/Desktop/LOG_FILES/` for forensic audit. | **Log Bütünlüğü** | Her araç, adli denetim için `~/Desktop/LOG_FILES/` altına yapılandırılmış, zaman damgalı log ekler. |
+| ENGLISH | TÜRKÇE |
+|---------|--------|
+| • The suite is **idempotent** – it can be executed 1000 times without side‑effects or log flooding.<br>• **Baseline poisoning is prevented**: `rkhunter --propupd` and `aide --update` always require explicit user confirmation.<br>• All scripts honour **strict mode** (`set -Eeuo pipefail`, `IFS=$'\n\t'`) and clean up locks with `trap` even on CTRL+C.<br>• Lock files reside under `~/.local/run/locks/` (user‑only writable) to avoid symlink attacks.<br>• Designed for single‑user, single‑machine Fedora 44 on Surface Pro 9; not intended for multi‑user servers. | • Paket **idempotent**’tir – 1000 kez çalıştırılsa dahi yan etki veya log şişmesi yapmaz.<br>• **Referans zehirlenmesi önlenir**: `rkhunter --propupd` ve `aide --update` her zaman açık kullanıcı onayı gerektirir.<br>• Tüm betikler **katı mod** (`set -Eeuo pipefail`, `IFS=$'\n\t'`) kurallarına uyar ve CTRL+C’de dahi `trap` ile kilitleri temizler.<br>• Kilit dosyaları symlink saldırılarını önlemek için yalnızca kullanıcının yazabildiği `~/.local/run/locks/` altındadır.<br>• Surface Pro 9 üzerinde tek kullanıcılı, tek makineli Fedora 44 için tasarlanmıştır; çok kullanıcılı sunucular için uygun değildir. |
 
 ---
 
-*This suite is designed to meet the “Zero Error, High Speed, Maximum Security” mandate on a Fedora 44 / Surface Pro 9 single‑user workstation. Run `sysupdate` weekly, `rk-denetim` after major changes, and always check logs.*
-*Bu paket, Fedora 44 / Surface Pro 9 tek kullanıcılı iş istasyonunda “Sıfır Hata, Yüksek Hız, Maksimum Güvenlik” ilkesini karşılamak üzere tasarlanmıştır. Haftalık `sysupdate` çalıştırın, büyük değişikliklerden sonra `rk-denetim` yapın ve her zaman logları kontrol edin.*
+*End of Document / Belge Sonu*
 POTATO
