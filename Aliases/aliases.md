@@ -398,40 +398,86 @@ Each alias points to a hardened script in `/usr/local/bin`. **Both the alias lin
 
 **Script code (save as `/usr/local/bin/secure-wipe`):**
 
-    #!/usr/bin/env bash
-    set -Eeuo pipefail
-    IFS=$'\n\t'
-    
-    readonly SCRIPT_NAME="secure-wipe"
-    readonly LOG_DIR="${HOME}/Desktop/LOG_FILES"
-    readonly LOG_FILE="${LOG_DIR}/${SCRIPT_NAME}.log"
-    mkdir -p "$LOG_DIR"
-    
-    logmsg() { echo "[$(date '+%F %T')] $*" | tee -a "$LOG_FILE"; }
-    
-    readonly TARGET="${1:-}"
-    if [[ -z "$TARGET" ]]; then
-        logmsg "[HATA] Dosya belirtilmedi."
-        exit 1
-    fi
-    if [[ ! -f "$TARGET" ]]; then
-        logmsg "[HATA] '$TARGET' düzenli dosya değil."
-        exit 1
-    fi
-    
-    cat <<EOF | tee -a "$LOG_FILE"
-    ⚠️  SSD UYARISI: Shred, SSD'lerde aşınma dengeleme nedeniyle tüm kopyaları yok edemeyebilir.
-    EOF
-    
-    read -r -p "Devam edilsin mi? (yes/no): " ONAY
-    if [[ ! "$ONAY" =~ ^(yes|y|Y)$ ]]; then
-        logmsg "İşlem iptal edildi."
-        exit 0
-    fi
-    
-    logmsg "Dosya imha ediliyor: $TARGET"
-    shred -u -z -n 3 "$TARGET" && logmsg "İmha başarılı: $TARGET"
+```bash
+ #!/usr/bin/env bash
+set -Eeuo pipefail
+IFS=$'\n\t'
 
+readonly SCRIPT_NAME="secure-wipe"
+readonly LOG_DIR="${HOME}/Desktop/LOG_FILES"
+readonly LOG_FILE="${LOG_DIR}/${SCRIPT_NAME}.log"
+mkdir -p "$LOG_DIR"
+
+logmsg() { echo "[$(date '+%F %T')] $*" | tee -a "$LOG_FILE"; }
+
+readonly TARGET="${1:-}"
+if [[ -z "$TARGET" ]]; then
+    echo >&2 "[HATA] Kullanım: $0 <dosya>"
+    exit 1
+fi
+
+if [[ ! -f "$TARGET" && ! -L "$TARGET" ]]; then
+    echo >&2 "[HATA] '$TARGET' düzenli bir dosya değil veya bulunamadı."
+    exit 1
+fi
+
+# --- Güvenilir disk türü tespiti ---
+readonly MOUNT_POINT=$(df --output=target "$TARGET" 2>/dev/null | tail -1)
+readonly DEVICE=$(df --output=source "$TARGET" 2>/dev/null | tail -1)
+IS_SSD=false
+
+if [[ -n "$DEVICE" && "$DEVICE" != "source" ]]; then
+    ROTA=$(lsblk -no ROTA "$DEVICE" 2>/dev/null || echo "")
+    if [[ "$ROTA" == "0" ]]; then
+        IS_SSD=true
+    fi
+fi
+
+# --- Kullanıcıyı bilgilendir ---
+if $IS_SSD; then
+    cat <<EOF | tee -a "$LOG_FILE"
+⚠️  SSD UYARISI:
+Bu cihaz bir SSD/NVMe disktir. Geleneksel 'shred' komutu SSD'lerde
+AŞINMA DENGELEME (wear leveling) ve FTL katmanı nedeniyle ETKİLİ DEĞİLDİR.
+Bu script, dosyayı önce rastgele veriyle doldurup sonra TRIM ile blokları
+sıfırlayarak daha güvenli bir silme uygulayacaktır.
+Ancak %100 geri getirilemezlik garantisi SADECE tam disk şifreleme (LUKS)
+ile mümkündür.
+EOF
+else
+    cat <<EOF | tee -a "$LOG_FILE"
+ℹ️  Bu bir döner (HDD) disktir. 'shred' ile 3 geçişli güvenli silme uygulanacak.
+EOF
+fi
+
+read -r -p "Devam edilsin mi? (yes/no): " ONAY
+if [[ ! "$ONAY" =~ ^(yes|y|Y)$ ]]; then
+    logmsg "Kullanıcı iptal etti."
+    exit 0
+fi
+
+# --- Silme işlemi ---
+logmsg "Dosya imha ediliyor: $TARGET"
+
+if $IS_SSD; then
+    filesize=$(stat -c%s "$TARGET")
+    if [[ "$filesize" -gt 0 ]]; then
+        logmsg "1/3 Rastgele veri ile üzerine yazılıyor ($filesize byte)..."
+        dd if=/dev/urandom of="$TARGET" bs=4096 conv=notrunc,fdatasync iflag=fullblock count=$(( (filesize + 4095) / 4096 )) 2>/dev/null
+    fi
+    logmsg "2/3 Disk önbelleği boşaltılıyor (sync)..."
+    sync -f "$TARGET"
+    logmsg "3/3 Dosya siliniyor ve TRIM tetikleniyor..."
+    rm "$TARGET"
+    sudo fstrim -v "$MOUNT_POINT" 2>/dev/null | tee -a "$LOG_FILE" || logmsg "TRIM manuel tetiklenemedi; sistem otomatik TRIM'e güvenin."
+    logmsg "SSD güvenli silme tamamlandı."
+else
+    shred -u -z -n 3 "$TARGET"
+    logmsg "HDD güvenli silme (shred) tamamlandı."
+fi
+
+logmsg "İmha işlemi bitti: $TARGET artık mevcut değil."
+```
 **Usage:**  
 
     secure-wipe secret.docx
