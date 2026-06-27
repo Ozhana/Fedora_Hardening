@@ -1,0 +1,12 @@
+[Unit]
+Description=AEGIS AIDE Timer - Her Pazar saat 02:00
+Requires=aegis-aide.service
+
+[Timer]
+# Haftalık - Pazar günü 02:00
+OnCalendar=Sun *-*-* 02:00:00
+RandomizedDelaySec=300
+Persistent=true
+
+[Install]
+WantedBy=timers.target
