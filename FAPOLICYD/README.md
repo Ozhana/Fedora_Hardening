@@ -1,4 +1,3 @@
-cat << 'EOF' > README.md
 <!--
 ================================================================================
 🛡️  AEGIS DOCKER NETWORK ISOLATION V6.0 - ENTERPRISE HARDENING SUITE
@@ -108,4 +107,3 @@ Status    : Production-Ready | Fedora 44 Certified
 END OF README
 ================================================================================
 -->
-EOF
